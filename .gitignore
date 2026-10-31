@@ -1,0 +1,37 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+/evaluation/results/
+# Runtime and local corpora
+/data/
+/local-corpus/
+/backups/
+*.sqlite3
+*.sqlite3-*
+*.log
+# Python and tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# Build/editor artifacts
+node_modules/
+.astro/
+playwright-report/
+test-results/
+/frontend/src/lib/api/generated/
+dist/
+.DS_Store
+.idea/
+.vscode/
+.mypy_cache/
+*.swp
