@@ -1,0 +1,54 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+<SiteLayout title="Add an article" description="Submit a URL to your private reading feed.">
+  <section class="page-heading">
+    <p class="eyebrow">Save for later</p>
+    <h1>Add an article</h1>
+    <p class="lede">Submit a link to keep it in your feed.</p>
+  </section>
+  <form class="panel form-stack" id="article-form">
+    <div class="field">
+      <label for="article-url">Article URL</label>
+      <input id="article-url" name="url" type="url" placeholder="https://example.com/article" autocomplete="url" required />
+    </div>
+    <div class="field">
+      <label for="article-title">Title</label>
+      <input id="article-title" name="title" autocomplete="off" required />
+    </div>
+    <div class="field">
+      <label for="article-body">Article text</label>
+      <textarea id="article-body" name="body" rows="8" required></textarea>
+    </div>
+    <button class="primary-button" type="submit">Add to feed</button>
+    <p class="form-message" id="article-message" role="status" aria-live="polite"></p>
+  </form>
+</SiteLayout>
+<script>
+  import { submitArticle } from '../lib/api/browser';
+
+  const form = document.querySelector<HTMLFormElement>('#article-form');
+  const message = document.querySelector<HTMLElement>('#article-message');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const values = new FormData(form);
+    const url = String(values.get('url') || '').trim();
+    const title = String(values.get('title') || '').trim();
+    const body = String(values.get('body') || '').trim();
+    if (button) button.disabled = true;
+    if (message) message.textContent = '';
+
+    try {
+      await submitArticle({ url, title, body });
+      form.reset();
+      if (message) message.textContent = 'Article added to your feed.';
+    } catch (error) {
+      if (message) message.textContent = error instanceof Error ? error.message : 'Could not submit this article.';
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+</script>

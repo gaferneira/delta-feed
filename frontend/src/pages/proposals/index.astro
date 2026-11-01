@@ -1,0 +1,253 @@
+---
+import { httpUrl } from '../../lib/url';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import { ServerApiError, serverListGuideDefinitions, serverListGuideEntries, serverListGuideProposals } from '../../lib/api/server';
+import type { GuideDefinition, GuideEntry, GuideProposal, GuideProposalType } from '../../lib/guides/types';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+let proposals: GuideProposal[] = [];
+let guides: GuideDefinition[] = [];
+let entries: GuideEntry[] = [];
+let loadError = '';
+try {
+  const cookie = Astro.request.headers.get('cookie');
+  [proposals, guides] = await Promise.all([
+    serverListGuideProposals(cookie),
+    serverListGuideDefinitions(cookie),
+  ]);
+  const updateGuideIds = [...new Set(proposals
+    .filter((proposal) => proposal.proposal_type === 'update' && proposal.target_entry_id != null)
+    .map((proposal) => String(proposal.guide_id)))];
+  const guideEntries = await Promise.all(updateGuideIds.map((id) => serverListGuideEntries(id, cookie)));
+  entries = guideEntries.flat();
+} catch (error) {
+  loadError = error instanceof ServerApiError && error.status === 401
+    ? 'Sign in to review guide proposals.'
+    : 'Guide proposals are temporarily unavailable.';
+}
+
+function guideTitle(guideId: string | number): string {
+  const guide = guides.find((item) => String(item.id) === String(guideId));
+  return guide?.title || `Guide ${guideId}`;
+}
+
+function textValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function listValue(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function proposalTypeLabel(type: GuideProposalType): string {
+  const labels: Record<GuideProposalType, string> = {
+    add: 'Add',
+    update: 'Update',
+    warning: 'Warning',
+    retire: 'Retire',
+  };
+  return labels[type];
+}
+
+function targetEntry(proposal: GuideProposal): GuideEntry | undefined {
+  if (proposal.target_entry_id == null) return undefined;
+  return entries.find((entry) => String(entry.id) === String(proposal.target_entry_id));
+}
+---
+<SiteLayout title="Discoveries · Guide review" description="Review evidence-backed proposals for your personal guides.">
+  <section class="page-heading">
+    <p class="eyebrow">Discoveries / Review</p>
+    <h1>Guide proposals</h1>
+    <p class="lede">Review evidence-backed suggestions before they change your personal guides. Your notes are never overwritten.</p>
+  </section>
+
+  {loadError ? (
+    <div class="error-state" role="status">{loadError} <a href="/login">Sign in</a> or try refreshing.</div>
+  ) : proposals.length ? (
+    <>
+      <div class="proposal-list" data-proposal-list aria-label="Pending guide proposals">
+        {proposals.map((proposal) => {
+          const entry = proposal.proposed_entry || {};
+          const currentEntry = targetEntry(proposal);
+          const requirements = listValue(entry.requirements);
+          const caveats = listValue(entry.caveats);
+          const summaryName = textValue(entry.entity_name) || currentEntry?.entity_name || 'Untitled entry';
+          const warningNote = textValue(entry.warning);
+          const retirementReason = textValue(entry.reason) || proposal.reasoning;
+          return (
+            <article class="proposal-card" data-proposal-id={String(proposal.id)} data-proposal-type={proposal.proposal_type}>
+              <div class="proposal-heading">
+                <div>
+                  <p class="eyebrow">Proposed for <a href={`/guides/${encodeURIComponent(String(proposal.guide_id))}`}>{guideTitle(proposal.guide_id)}</a></p>
+                  <h2>{summaryName}</h2>
+                </div>
+                <div class="proposal-badges">
+                  <span class={`proposal-type proposal-type--${proposal.proposal_type}`}>{proposalTypeLabel(proposal.proposal_type)}</span>
+                  <span class="proposal-status">Pending review</span>
+                </div>
+              </div>
+
+              {proposal.proposal_type === 'update' ? (
+                <section class="proposal-change" aria-label="Proposed update">
+                  <div>
+                    <h3>Current</h3>
+                    <p>{textValue(currentEntry?.suitability) || 'No current suitability text.'}</p>
+                  </div>
+                  <div>
+                    <h3>Proposed</h3>
+                    <p>{textValue(entry.suitability) || 'No new suitability content was provided.'}</p>
+                  </div>
+                </section>
+              ) : proposal.proposal_type === 'warning' ? (
+                <section class="proposal-note proposal-note--warning" aria-label="Warning note">
+                  <h3>Warning note</h3>
+                  <p>{warningNote || 'No warning note was provided.'}</p>
+                </section>
+              ) : proposal.proposal_type === 'retire' ? (
+                <section class="proposal-note" aria-label="Retirement reason">
+                  <h3>Retirement reason</h3>
+                  <p>{retirementReason || 'No retirement reason was provided.'}</p>
+                </section>
+              ) : (
+                <>
+                  {textValue(entry.suitability) && <p class="proposal-summary">{textValue(entry.suitability)}</p>}
+                  {requirements.length > 0 && <p class="proposal-detail"><strong>Requirements:</strong> {requirements.join(' · ')}</p>}
+                  {caveats.length > 0 && <p class="proposal-detail"><strong>Caveats:</strong> {caveats.join(' · ')}</p>}
+                </>
+              )}
+
+              <section class="proposal-section" aria-label="Evidence">
+                <h3>Evidence</h3>
+                {proposal.evidence.length ? (
+                  <ul class="evidence-list">
+                    {proposal.evidence.map((evidence) => {
+                      const sourceUrl = httpUrl(evidence.url);
+                      const title = textValue(evidence.title) || 'Source article';
+                      const criteria = listValue(evidence.matched_criteria);
+                      const fields = listValue(evidence.matched_fields);
+                      return (
+                        <li>
+                          {sourceUrl ? <a href={sourceUrl} target="_blank" rel="noopener noreferrer">{title}</a> : <strong>{title}</strong>}
+                          {criteria.length > 0 && <p><strong>Matched criteria:</strong> {criteria.join(' · ')}</p>}
+                          {fields.length > 0 && <p><strong>Found in:</strong> {fields.join(' · ')}</p>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : <p class="muted-copy">No evidence details were provided.</p>}
+              </section>
+
+              <section class="proposal-section" aria-label="Reasoning">
+                <h3>Why it was proposed</h3>
+                <p>{proposal.reasoning || 'No reasoning was provided.'}</p>
+              </section>
+
+              <div class="proposal-actions">
+                <button class="primary-button" type="button" data-review-action="accept">Accept</button>
+                <button class="secondary-button" type="button" data-review-action="reject">Reject</button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      <p class="empty-state" data-reviewed-empty hidden>All caught up. There are no pending proposals.</p>
+      <p class="review-status form-message" data-review-status role="status" aria-live="polite"></p>
+    </>
+  ) : (
+    <p class="empty-state">There are no pending guide proposals to review.</p>
+  )}
+</SiteLayout>
+
+<script>
+  import { acceptGuideProposal, rejectGuideProposal } from '../../lib/api/browser';
+  import { reviewProposal, type ProposalReviewItem } from '../../lib/guides/proposal-review';
+
+  const list = document.querySelector<HTMLElement>('[data-proposal-list]');
+  const status = document.querySelector<HTMLElement>('[data-review-status]');
+  const reviewedEmpty = document.querySelector<HTMLElement>('[data-reviewed-empty]');
+  let pending: ProposalReviewItem[] = Array.from(
+    list?.querySelectorAll<HTMLElement>('[data-proposal-id]') || [],
+  ).map((card) => ({ id: card.dataset.proposalId || '' }));
+  let isReviewing = false;
+
+  list?.querySelectorAll<HTMLElement>('[data-proposal-id]').forEach((card) => {
+    const proposalId = card.dataset.proposalId;
+    if (!proposalId) return;
+    const buttons = Array.from(card.querySelectorAll<HTMLButtonElement>('[data-review-action]'));
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (isReviewing) return;
+        const action = button.dataset.reviewAction;
+        if (action !== 'accept' && action !== 'reject') return;
+        isReviewing = true;
+        document.querySelectorAll<HTMLButtonElement>('[data-review-action]').forEach((item) => { item.disabled = true; });
+        if (status) {
+          status.textContent = action === 'accept' ? 'Accepting proposal…' : 'Rejecting proposal…';
+          status.dataset.state = 'saving';
+        }
+
+        const result = await reviewProposal(pending, proposalId, action, (id, reviewAction) =>
+          reviewAction === 'accept' ? acceptGuideProposal(id) : rejectGuideProposal(id),
+        );
+        pending = result.proposals;
+        if (status) {
+          status.textContent = result.message;
+          status.dataset.state = result.status;
+        }
+        if (result.status !== 'error') {
+          card.remove();
+          if (pending.length === 0 && reviewedEmpty) reviewedEmpty.hidden = false;
+        }
+        isReviewing = false;
+        document.querySelectorAll<HTMLButtonElement>('[data-review-action]').forEach((item) => { item.disabled = false; });
+      });
+    });
+  });
+</script>
+
+<style>
+  .proposal-list { display: grid; gap: 1rem; }
+  .proposal-card { padding: clamp(1.1rem, 3vw, 1.5rem); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 6px rgb(22 45 34 / 3%); }
+  .proposal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+  .proposal-heading .eyebrow a { text-underline-offset: 3px; }
+  .proposal-badges { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: .45rem; }
+  .proposal-type, .proposal-status { border-radius: 999px; padding: .25rem .65rem; font-size: .72rem; font-weight: 700; }
+  .proposal-type { background: #e8f1eb; color: #245c45; }
+  .proposal-type--update { background: #e9eff8; color: #315581; }
+  .proposal-type--warning { background: #fff3d8; color: #79550a; }
+  .proposal-type--retire { background: #fce9e5; color: #8e362b; }
+  .proposal-status { background: #f0f3f0; color: var(--muted); }
+  .proposal-card h2 { margin: 0; font-size: 1.25rem; }
+  .proposal-summary, .proposal-detail { color: #34433c; line-height: 1.6; margin: .75rem 0 0; }
+  .proposal-detail { color: var(--muted); font-size: .88rem; }
+  .proposal-change { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: 1rem; }
+  .proposal-change > div, .proposal-note { padding: .9rem 1rem; border: 1px solid var(--line); border-radius: 9px; background: #f8faf8; }
+  .proposal-change h3, .proposal-note h3 { margin: 0; font-size: .85rem; }
+  .proposal-change p, .proposal-note p { color: #34433c; line-height: 1.6; margin: .4rem 0 0; white-space: pre-wrap; }
+  .proposal-note { margin-top: 1rem; }
+  .proposal-note--warning { border-color: #e8d7a8; background: #fffaf0; }
+  .proposal-section { border-top: 1px solid var(--line); margin-top: 1.1rem; padding-top: .9rem; }
+  .proposal-section h3 { margin: 0; font-size: .88rem; }
+  .proposal-section > p { color: #34433c; line-height: 1.6; margin: .45rem 0 0; white-space: pre-wrap; }
+  .evidence-list { display: grid; gap: .55rem; margin: .55rem 0 0; padding-left: 1.2rem; }
+  .evidence-list li { color: #34433c; line-height: 1.5; }
+  .evidence-list a { color: var(--green); font-weight: 700; text-underline-offset: 3px; }
+  .evidence-list p { color: var(--muted); font-size: .82rem; margin: .2rem 0 0; }
+  .proposal-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.2rem; }
+  .proposal-actions .primary-button { justify-self: auto; }
+  .secondary-button { border: 1px solid #cbd6ce; border-radius: 8px; background: #fff; color: var(--ink); padding: .8rem 1.2rem; cursor: pointer; font-weight: 700; }
+  .secondary-button:hover { background: #f0f3f0; }
+  .proposal-actions button:disabled { opacity: .65; cursor: wait; }
+  .review-status[data-state="success"] { background: var(--green-soft); color: #1b634b; }
+  .review-status[data-state="already-processed"] { background: #f0f3f0; color: var(--muted); }
+  .review-status[data-state="error"] { background: #fff0ed; color: #8e362b; }
+  @media (max-width: 600px) {
+    .proposal-heading { flex-direction: column; gap: .5rem; }
+    .proposal-badges { justify-content: flex-start; }
+    .proposal-change { grid-template-columns: 1fr; }
+    .proposal-actions button { flex: 1; }
+  }
+</style>

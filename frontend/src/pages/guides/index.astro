@@ -1,0 +1,57 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import { ServerApiError, serverListGuideDefinitions } from '../../lib/api/server';
+import type { GuideDefinition } from '../../lib/guides/types';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+let definitions: GuideDefinition[] = [];
+let loadError = '';
+try {
+  definitions = await serverListGuideDefinitions(Astro.request.headers.get('cookie'));
+} catch (error) {
+  loadError = error instanceof ServerApiError && error.status === 401
+    ? 'Sign in to see your guides.'
+    : 'Your guides are temporarily unavailable.';
+}
+
+function guideTitle(guide: GuideDefinition): string {
+  return guide.title || 'Untitled guide';
+}
+function criteriaText(criteria: GuideDefinition['eligibility_criteria']): string {
+  return criteria.join(' · ');
+}
+---
+<SiteLayout title="Your guides" description="Your personal guides and curated entries.">
+  <section class="page-heading">
+    <p class="eyebrow">Living reference</p>
+    <h1>Your guides</h1>
+    <p class="lede">Structured recommendations, kept with your own notes and revision history.</p>
+  </section>
+
+  {loadError ? (
+    <div class="error-state" role="status">{loadError} <a href="/login">Sign in</a> or try refreshing.</div>
+  ) : definitions.length ? (
+    <div class="guide-list" aria-label="Guides">
+      {definitions.map((guide) => (
+        <article class="guide-card">
+          <div>
+            <p class="eyebrow">Personal guide</p>
+            <h2><a href={`/guides/${encodeURIComponent(String(guide.id))}`}>{guideTitle(guide)}</a></h2>
+            {guide.purpose && <p class="guide-description">{guide.purpose}</p>}
+            {guide.audience && <p class="guide-meta"><strong>For:</strong> {guide.audience}</p>}
+            {criteriaText(guide.eligibility_criteria) && (
+              <p class="guide-meta"><strong>Eligibility:</strong> {criteriaText(guide.eligibility_criteria)}</p>
+            )}
+          </div>
+          <a class="guide-open" href={`/guides/${encodeURIComponent(String(guide.id))}`} aria-label={`Open ${guideTitle(guide)}`}>
+            Open guide <span aria-hidden="true">→</span>
+          </a>
+        </article>
+      ))}
+    </div>
+  ) : (
+    <p class="empty-state">No guides yet. Your personal guides will appear here.</p>
+  )}
+</SiteLayout>

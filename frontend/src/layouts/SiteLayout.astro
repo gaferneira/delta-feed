@@ -1,0 +1,32 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description = 'A quiet place for useful reading.' } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · Delta Feed</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="/">Delta Feed<span aria-hidden="true">.</span></a>
+      <nav aria-label="Main navigation">
+        <a href="/">Feed</a>
+        <a href="/proposals">Discoveries</a>
+        <a href="/guides">Guides</a>
+        <a href="/sources">Sources</a>
+        <a href="/submit">Add article</a>
+      </nav>
+    </header>
+    <main class="page-shell"><slot /></main>
+  </body>
+</html>

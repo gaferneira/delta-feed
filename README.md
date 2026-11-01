@@ -2,7 +2,7 @@
 
 A self-hosted reader with two jobs: show you what is actually new (unfamiliar projects and meaningful updates) without repeating what you already know, and keep your own reference articles up to date.
 
-> **Status:** design only. There is no application, API, installable image or deployment yet. See [Project status](#project-status).
+> **Status:** early, local-only. The reader, guides, RSS ingestion and claim API are implemented and covered by automated tests (backend 122 pytest, frontend 45 vitest + Astro build) against a SQLite dev DB. Several pieces are built but not wired together, and nothing has been deployed or run against real data. See [Project status](#project-status).
 
 ## The problem
 
@@ -48,12 +48,21 @@ Everything ships as one repository and one Compose installation. Built-in RSS an
 This section is the single place that tracks project status; other documents link here.
 
 - **Decided:** standalone modular monolith ([ADR 0001](docs/decisions/0001-modular-monolith.md)), Astro + Django Ninja ([ADR 0002](docs/decisions/0002-astro-django-ninja.md)), selective hexagonal backend ([ADR 0003](docs/decisions/0003-selective-hexagonal-backend.md)), content and ingestion defaults ([ADR 0004](docs/decisions/0004-content-and-ingestion-defaults.md)).
-- **Pending:** database schema, port payloads, numerical limits and retention windows, dependency versions.
-- **Not yet exercised:** any code, install, run or test command. The stack has not been compatibility-tested.
+- **Verified by automated tests only (SQLite dev DB, mocked network, no live browser/end-to-end run):**
+  - [Milestone 1](docs/roadmap.md#milestone-1-reader-vertical-slice-no-ai): login, manual submission, paginated reader feed (Today / Backfill), read/save state.
+  - [Milestone 2](docs/roadmap.md#milestone-2-manual-guides-no-ai): manual guides with optimistic-concurrency revisions.
+  - [Milestone 3](docs/roadmap.md#milestone-3-safe-ingestion-and-jobs) (partial): bounded RSS fetching that validates every redirect hop and pins the connection to the validated public IP, http(s)-only link validation, and a DB-backed lease/retry job worker. DNS pinning is tested against a loopback server and mocks, not against real TLS/SNI endpoints.
+  - [Milestone 4](docs/roadmap.md#milestone-4-discovery-shadow-mode-and-guide-additions) and [5](docs/roadmap.md#milestone-5-entity-deltas-and-guide-updates-in-shadow-mode) as library/API code: entity matching, append-only scoped claims tied to the analysed article revision (completed analysis runs only), and reviewable guide proposals. Accepting an update merges into existing text instead of overwriting it.
+- **Built but not wired into a running flow:**
+  - `analysis.use_cases.extract_article` (Ollama extraction) has no caller outside tests; no job handler runs it after ingestion, and it has not been run against a real model.
+  - `guides.use_cases.generate_guide_proposals_for_entity` has no production caller. Update/warning/retire proposals are only generated when a claim is posted through `POST /api/knowledge/claims`.
+  - RSS is fetched once, as a quiet backfill job when a source is registered. There is no recurring scheduler, so new items are not polled after that.
+  - Embedding/similarity candidate matching exists, but nothing populates embeddings.
+- **Known limits:** login throttling uses a per-process cache; analysis runs recorded before revision tracking have no revision and cannot accept claims; the frontend was upgraded to Astro 6 because Astro 7 needs a newer Node than the dev machine has.
+- **Not yet done:** [Milestone 0](docs/roadmap.md#milestone-0-real-examples)'s real-article worked-example corpus (requires Gabriel's own collected examples, not synthetic ones), and [Milestone 6](docs/roadmap.md#milestone-6-private-deployment-and-first-daily-trial) deployment — production PostgreSQL/pgvector, HTTPS ingress, backup/restore verification, migration runs against Postgres, and the daily trial itself.
+- **Local development:** settings refuse to start without a real `DJANGO_SECRET_KEY` unless `DJANGO_DEBUG=true`; production cookies are `Secure` by default. `scripts/init.sh` sets `DJANGO_DEBUG=true` for local use.
 
-**Next step:** [Milestone 0](docs/roadmap.md#milestone-0-real-examples): collect real articles, write down the reader cards you would expect from them, and capture one or two of your guides with the changes you would expect. Then build the smallest authenticated submit → persist → render → read/save slice without AI, followed by manual guides. Model analysis comes after, in shadow mode.
-
-There are intentionally no installation commands yet; they will be added once a scaffold has actually been run.
+**Next step:** wire ingestion → extraction → proposals into the worker with a recurring poll schedule, then [Milestone 6](docs/roadmap.md#milestone-6-private-deployment-and-first-daily-trial): verify standalone install (Postgres/pgvector, Compose) and backup/restore before the first daily trial. Installation commands remain pending until that scaffold is exercised end-to-end outside the dev environment.
 
 ## Documentation
 

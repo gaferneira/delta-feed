@@ -1,0 +1,123 @@
+---
+import { httpUrl } from '../../lib/url';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import { ServerApiError, serverListSources } from '../../lib/api/server';
+import type { Source } from '../../lib/sources/types';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+let sources: Source[] = [];
+let loadError = '';
+try {
+  sources = await serverListSources(Astro.request.headers.get('cookie'));
+} catch (error) {
+  loadError = error instanceof ServerApiError && error.status === 401
+    ? 'Sign in to manage your sources.'
+    : 'Your sources are temporarily unavailable.';
+}
+
+function sourceStatus(source: Source): { label: string; className: string } {
+  if (source.consecutive_failures > 0 || source.last_error) {
+    return { label: 'Needs attention', className: 'source-status-error' };
+  }
+  if (source.last_fetch_at) return { label: 'Healthy', className: 'source-status-ok' };
+  return { label: 'Awaiting first fetch', className: 'source-status-pending' };
+}
+function displayDate(value: string | null): string {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+---
+<SiteLayout title="Sources" description="Manage RSS sources and monitor their feed health.">
+  <section class="page-heading">
+    <p class="eyebrow">Feed management</p>
+    <h1>Sources</h1>
+    <p class="lede">Registered RSS feeds and their latest fetch health.</p>
+  </section>
+
+  <section class="source-section" aria-labelledby="registered-sources-heading">
+    <div class="source-section-heading">
+      <h2 id="registered-sources-heading">Registered sources</h2>
+      <span class="source-count">{sources.length}</span>
+    </div>
+    {loadError ? (
+      <div class="error-state" role="status">{loadError} <a href="/login">Sign in</a> or try refreshing.</div>
+    ) : sources.length ? (
+      <div class="source-list" aria-label="Registered RSS sources">
+        {sources.map((source) => {
+          const status = sourceStatus(source);
+          return (
+            <article class="source-card">
+              <div class="source-card-heading">
+                <div>
+                  <h3>{source.name}</h3>
+                  {httpUrl(source.rss_feed_url)
+                    ? <a class="source-url" href={httpUrl(source.rss_feed_url)} target="_blank" rel="noopener noreferrer">{source.rss_feed_url}</a>
+                    : <span class="source-url">{source.rss_feed_url}</span>}
+                </div>
+                <span class={`source-status ${status.className}`}>{status.label}</span>
+              </div>
+              <dl class="source-health">
+                <div><dt>Last fetch</dt><dd>{displayDate(source.last_fetch_at)}</dd></div>
+                <div><dt>Consecutive failures</dt><dd>{source.consecutive_failures}</dd></div>
+              </dl>
+              {source.last_error && <p class="source-last-error"><strong>Last error:</strong> {source.last_error}</p>}
+            </article>
+          );
+        })}
+      </div>
+    ) : (
+      <p class="empty-state">No RSS sources registered yet. Add one below to start a quiet backfill.</p>
+    )}
+  </section>
+
+  <section class="source-section" aria-labelledby="add-source-heading">
+    <div class="source-section-heading">
+      <h2 id="add-source-heading">Add an RSS source</h2>
+    </div>
+    <form class="panel form-stack" id="source-form" novalidate>
+      <div class="field">
+        <label for="source-name">Source name</label>
+        <input id="source-name" name="name" maxlength="200" autocomplete="organization" required />
+      </div>
+      <div class="field">
+        <label for="source-feed-url">RSS feed URL</label>
+        <input id="source-feed-url" name="rss_feed_url" type="url" maxlength="2048" placeholder="https://example.com/feed.xml" autocomplete="url" required />
+        <small>Use an absolute HTTP or HTTPS feed URL. Registering queues an initial backfill.</small>
+      </div>
+      <button class="primary-button" type="submit">Register source</button>
+      <p class="form-message" id="source-message" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</SiteLayout>
+<script>
+  import { registerSource } from '../../lib/api/browser';
+  import { sourceFormError, sourceSubmissionErrorMessage } from '../../lib/sources/form';
+
+  const form = document.querySelector<HTMLFormElement>('#source-form');
+  const message = document.querySelector<HTMLElement>('#source-message');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const values = new FormData(form);
+    const name = String(values.get('name') || '').trim();
+    const rss_feed_url = String(values.get('rss_feed_url') || '').trim();
+    const validationError = sourceFormError(name, rss_feed_url);
+    if (message) message.textContent = validationError || '';
+    if (validationError) return;
+
+    if (button) button.disabled = true;
+    try {
+      await registerSource({ name, rss_feed_url });
+      form.reset();
+      if (message) message.textContent = 'Source registered and initial backfill queued.';
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      if (message) message.textContent = sourceSubmissionErrorMessage(error);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+</script>

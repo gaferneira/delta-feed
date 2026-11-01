@@ -1,0 +1,251 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import { ServerApiError, serverGetGuideDefinition, serverListGuideEntries } from '../../lib/api/server';
+import type { GuideDefinition, GuideEntry } from '../../lib/guides/types';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+const guideId = Astro.params.id || '';
+let guide: GuideDefinition | null = null;
+let entries: GuideEntry[] = [];
+let loadError = '';
+try {
+  [guide, entries] = await Promise.all([
+    serverGetGuideDefinition(guideId, Astro.request.headers.get('cookie')),
+    serverListGuideEntries(guideId, Astro.request.headers.get('cookie')),
+  ]);
+} catch (error) {
+  loadError = error instanceof ServerApiError && error.status === 401
+    ? 'Sign in to see this guide.'
+    : error instanceof ServerApiError && error.status === 404
+      ? 'This guide could not be found.'
+      : 'This guide is temporarily unavailable.';
+}
+
+function guideTitle(item: GuideDefinition | null): string {
+  return item?.title || 'Guide';
+}
+function entryTitle(entry: GuideEntry): string {
+  return entry.entity_name || 'Untitled entry';
+}
+function criteriaText(criteria: GuideDefinition['eligibility_criteria']): string {
+  return criteria.join(' · ');
+}
+---
+<SiteLayout title={guideTitle(guide)} description={guide?.purpose || 'A personal guide with structured entries and preserved notes.'}>
+  <p class="back-link"><a href="/guides">← All guides</a></p>
+  {loadError ? (
+    <div class="error-state" role="status">{loadError} <a href="/login">Sign in</a> or return to <a href="/guides">your guides</a>.</div>
+  ) : guide ? (
+    <>
+      <section class="page-heading">
+        <p class="eyebrow">Personal guide</p>
+        <h1>{guideTitle(guide)}</h1>
+        {guide.purpose && <p class="lede">{guide.purpose}</p>}
+        {guide.audience && <p class="guide-meta"><strong>For:</strong> {guide.audience}</p>}
+        {criteriaText(guide.eligibility_criteria) && (
+          <p class="guide-meta"><strong>Eligibility:</strong> {criteriaText(guide.eligibility_criteria)}</p>
+        )}
+      </section>
+
+      {entries.length ? (
+        <div class="guide-entries" aria-label="Guide entries">
+          {entries.map((entry) => (
+            <article
+              class="guide-entry panel"
+              data-guide-entry
+              data-entry-id={String(entry.id)}
+              data-revision={String(entry.revision)}
+            >
+              <div class="entry-heading">
+                <div>
+                  <h2>{entryTitle(entry)}</h2>
+                </div>
+                <p class="guide-meta">
+                  <span data-revision-label>Revision {entry.revision}</span>
+                  {entry.updated_at && <> · <time data-updated-at datetime={entry.updated_at}>Updated {entry.updated_at}</time></>}
+                </p>
+              </div>
+              {entry.suitability && <p class="entry-suitability">{entry.suitability}</p>}
+              {entry.requirements?.length ? <p class="entry-detail"><strong>Requirements:</strong> {entry.requirements.join(' · ')}</p> : null}
+              {entry.caveats?.length ? <p class="entry-detail"><strong>Caveats:</strong> {entry.caveats.join(' · ')}</p> : null}
+              <div class="entry-prose">
+                <p class="eyebrow">Your note</p>
+                <p data-note-display class:list={[{ 'muted-copy': !entry.personal_prose }]}>{entry.personal_prose || 'No personal note yet.'}</p>
+              </div>
+
+              <form class="entry-edit form-stack" data-entry-form>
+                <div class="field">
+                  <label for={`entry-note-${entry.id}`}>Your note</label>
+                  <textarea id={`entry-note-${entry.id}`} name="personal_prose" rows="4">{entry.personal_prose}</textarea>
+                  <small>Your prose is saved separately and will not be replaced by guide proposals.</small>
+                </div>
+                <button class="primary-button" type="submit">Save note</button>
+                <p class="entry-save-status form-message" data-save-status role="status" aria-live="polite"></p>
+              </form>
+
+              <details class="revision-history" data-revisions>
+                <summary>Revision history</summary>
+                <ul class="revision-list" data-revision-list>
+                  <li class="muted-copy">Open to load revision history.</li>
+                </ul>
+              </details>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p class="empty-state">This guide has no entries yet.</p>
+      )}
+    </>
+  ) : null}
+</SiteLayout>
+
+<script>
+  import { getGuideEntry, getGuideEntryRevisions, updateGuideEntry } from '../../lib/api/browser';
+  import { saveEntryDraft } from '../../lib/guides/edit';
+  import type { GuideEntry, GuideEntryRevision } from '../../lib/guides/types';
+
+  function revisionLabel(revision: GuideEntryRevision): string {
+    return `Revision ${revision.version}`;
+  }
+
+  /** Reflect a backend entry (from the edit response or a refetch) in the page. */
+  function showEntry(entryElement: HTMLElement, entry: GuideEntry): void {
+    entryElement.dataset.revision = String(entry.revision);
+    const label = entryElement.querySelector<HTMLElement>('[data-revision-label]');
+    if (label) label.textContent = `Revision ${entry.revision}`;
+    const updated = entryElement.querySelector<HTMLTimeElement>('[data-updated-at]');
+    if (updated && entry.updated_at) {
+      updated.dateTime = entry.updated_at;
+      updated.textContent = `Updated ${entry.updated_at}`;
+    }
+    const note = entryElement.querySelector<HTMLElement>('[data-note-display]');
+    if (note) {
+      note.textContent = entry.personal_prose || 'No personal note yet.';
+      note.classList.toggle('muted-copy', !entry.personal_prose);
+    }
+    // Force the revision history to reload the next time it is opened.
+    const history = entryElement.querySelector<HTMLDetailsElement>('[data-revisions]');
+    if (history) {
+      delete history.dataset.loaded;
+      const list = history.querySelector<HTMLUListElement>('[data-revision-list]');
+      if (list) {
+        list.replaceChildren();
+        const item = document.createElement('li');
+        item.className = 'muted-copy';
+        item.textContent = 'Open to load revision history.';
+        list.append(item);
+        if (history.open) history.open = false;
+      }
+    }
+  }
+
+  function renderRevisionList(list: HTMLUListElement, revisions: GuideEntryRevision[]): void {
+    list.replaceChildren();
+    if (!revisions.length) {
+      const empty = document.createElement('li');
+      empty.className = 'muted-copy';
+      empty.textContent = 'No revision history is available.';
+      list.append(empty);
+      return;
+    }
+
+    revisions.forEach((revision) => {
+      const item = document.createElement('li');
+      const heading = document.createElement('strong');
+      heading.textContent = revisionLabel(revision);
+      item.append(heading);
+
+      const timestamp = revision.created_at || revision.changed_at || revision.updated_at;
+      if (timestamp) {
+        const time = document.createElement('time');
+        time.dateTime = timestamp;
+        time.textContent = new Date(timestamp).toLocaleString();
+        item.append(time);
+      }
+
+      const summary = revision.change_summary;
+      if (summary) {
+        const description = document.createElement('p');
+        description.textContent = summary;
+        item.append(description);
+      }
+      const prose = revision.snapshot?.personal_prose ?? revision.snapshot?.prose ?? revision.personal_prose ?? revision.prose;
+      if (prose) {
+        const note = document.createElement('blockquote');
+        note.textContent = prose;
+        item.append(note);
+      }
+      list.append(item);
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-guide-entry]').forEach((entryElement) => {
+    const entryId = entryElement.dataset.entryId;
+    const form = entryElement.querySelector<HTMLFormElement>('[data-entry-form]');
+    const textarea = form?.querySelector<HTMLTextAreaElement>('textarea[name="personal_prose"]');
+    const button = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const status = form?.querySelector<HTMLElement>('[data-save-status]');
+    if (!entryId || !form || !textarea || !button || !status) return;
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const draft = textarea.value;
+      const expectedRevision = Number(entryElement.dataset.revision || '0');
+      button.disabled = true;
+      status.dataset.state = 'saving';
+      status.textContent = 'Saving…';
+
+      const result = await saveEntryDraft(draft, (personalProse) =>
+        updateGuideEntry(entryId, { personal_prose: personalProse, expected_revision: expectedRevision }),
+      );
+      status.dataset.state = result.status;
+      status.textContent = result.message;
+
+      if (result.status === 'conflict') {
+        // Refetch so the page shows the current note and revision, but never overwrite the
+        // user's draft or retry implicitly: they must save again deliberately.
+        try {
+          const current = await getGuideEntry(entryId);
+          showEntry(entryElement, current);
+          status.textContent = `This note changed elsewhere and is now at revision ${current.revision}. `
+            + 'Your draft is kept below; review the current note above, then save again to replace it.';
+        } catch {
+          status.textContent = 'This note changed elsewhere and the latest version could not be loaded. Your draft is kept; reload the page.';
+        }
+      } else if (result.status === 'saved') {
+        const saved = result.value as GuideEntry;
+        showEntry(entryElement, saved);
+        status.textContent = `Entry saved. Now at revision ${saved.revision}.`;
+      }
+
+      button.disabled = false;
+    });
+
+    const history = entryElement.querySelector<HTMLDetailsElement>('[data-revisions]');
+    const revisionList = history?.querySelector<HTMLUListElement>('[data-revision-list]');
+    if (!history || !revisionList) return;
+    history.addEventListener('toggle', async () => {
+      if (!history.open || history.dataset.loaded === 'true' || history.dataset.loaded === 'loading') return;
+      history.dataset.loaded = 'loading';
+      revisionList.textContent = '';
+      const loading = document.createElement('li');
+      loading.className = 'muted-copy';
+      loading.textContent = 'Loading history…';
+      revisionList.append(loading);
+      try {
+        const revisions = await getGuideEntryRevisions(entryId);
+        renderRevisionList(revisionList, revisions);
+        history.dataset.loaded = 'true';
+      } catch (error) {
+        revisionList.replaceChildren();
+        const failure = document.createElement('li');
+        failure.className = 'error-copy';
+        failure.textContent = error instanceof Error ? error.message : 'Could not load revision history.';
+        revisionList.append(failure);
+        history.dataset.loaded = 'error';
+      }
+    });
+  });
+</script>

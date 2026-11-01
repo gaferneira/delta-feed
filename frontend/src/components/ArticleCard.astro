@@ -1,0 +1,44 @@
+---
+import { httpUrl } from '../lib/url';
+
+interface Props {
+  article: {
+    id: string | number;
+    title: string;
+    source: string;
+    url?: string | null;
+    excerpt?: string;
+    publishedAt?: string | null;
+    isBackfill?: boolean;
+    isRead: boolean;
+    isSaved: boolean;
+  };
+}
+const { article } = Astro.props;
+const href = httpUrl(article.url);
+---
+<article class="article-card" data-article-card data-article-id={article.id}>
+  <div class="article-copy">
+    <p class="article-source">{article.source}</p>
+    <h2>{href ? <a href={href} target="_blank" rel="noopener noreferrer">{article.title}</a> : article.title}</h2>
+    {article.excerpt && <p class="article-excerpt">{article.excerpt}</p>}
+    <div class="article-state" aria-label="Article status">
+      {article.isBackfill && <span class="state-indicator">Backfill</span>}
+      <span class:list={['state-indicator', { active: article.isRead }]} data-read-indicator>
+        {article.isRead ? 'Read' : 'Unread'}
+      </span>
+      <span class:list={['state-indicator', { active: article.isSaved }]} data-save-indicator>
+        {article.isSaved ? 'Saved' : 'Not saved'}
+      </span>
+    </div>
+  </div>
+  <div class="article-actions" aria-label="Article actions">
+    <button type="button" class="quiet-button" data-action="read" aria-pressed={article.isRead}>
+      {article.isRead ? 'Mark unread' : 'Mark read'}
+    </button>
+    <button type="button" class="quiet-button" data-action="save" aria-pressed={article.isSaved}>
+      {article.isSaved ? 'Unsave' : 'Save'}
+    </button>
+    <span class="action-status" role="status" aria-live="polite"></span>
+  </div>
+</article>
