@@ -8,3 +8,10 @@ export function httpUrl(value: unknown): string | null {
     return null;
   }
 }
+
+/** A same-origin relative path safe to redirect to after sign-in; anything else falls back to "/". */
+export function safeNextPath(value: unknown): string {
+  if (typeof value !== 'string') return '/';
+  if (!value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u001f]/.test(value)) return '/';
+  return value;
+}

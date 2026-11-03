@@ -1,4 +1,5 @@
 ---
+import { loginLocation } from '../../lib/auth-gate';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 import { ServerApiError, serverListGuideDefinitions } from '../../lib/api/server';
 import type { GuideDefinition } from '../../lib/guides/types';
@@ -11,9 +12,9 @@ let loadError = '';
 try {
   definitions = await serverListGuideDefinitions(Astro.request.headers.get('cookie'));
 } catch (error) {
-  loadError = error instanceof ServerApiError && error.status === 401
-    ? 'Sign in to see your guides.'
-    : 'Your guides are temporarily unavailable.';
+  // An expired session mid-visit goes back to sign-in rather than rendering an error.
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = 'Your guides are temporarily unavailable.';
 }
 
 function guideTitle(guide: GuideDefinition): string {

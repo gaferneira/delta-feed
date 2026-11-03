@@ -1,5 +1,6 @@
 ---
 import { httpUrl } from '../../lib/url';
+import { loginLocation } from '../../lib/auth-gate';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 import { ServerApiError, serverListGuideDefinitions, serverListGuideEntries, serverListGuideProposals } from '../../lib/api/server';
 import type { GuideDefinition, GuideEntry, GuideProposal, GuideProposalType } from '../../lib/guides/types';
@@ -23,9 +24,9 @@ try {
   const guideEntries = await Promise.all(updateGuideIds.map((id) => serverListGuideEntries(id, cookie)));
   entries = guideEntries.flat();
 } catch (error) {
-  loadError = error instanceof ServerApiError && error.status === 401
-    ? 'Sign in to review guide proposals.'
-    : 'Guide proposals are temporarily unavailable.';
+  // An expired session mid-visit goes back to sign-in rather than rendering an error.
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = 'Guide proposals are temporarily unavailable.';
 }
 
 function guideTitle(guideId: string | number): string {

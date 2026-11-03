@@ -6,7 +6,7 @@ News comes first, but guides are not left until the end. Manual guides follow th
 
 ## Milestone 0: Real examples
 
-Collect actual article URLs/evidence and record the prior known baseline and desired cards. Cover mostly-known roundups, renames, similar distinct tools/forks, repeated announcements, beta/GA changes, refinements/contradictions, familiar security events, irrelevant novelty, and incomplete source extraction. Include sources beyond AI news, such as hobbyist hardware and home-automation project blogs, forums and repositories, so extraction is not tuned to one kind of writing.
+Collect actual article URLs/evidence and record the prior known baseline and desired cards. [baseline-corpus.md](baseline-corpus.md) is the standard procedure for collecting the baseline and daily verdicts. Cover mostly-known roundups, renames, similar distinct tools/forks, repeated announcements, beta/GA changes, refinements/contradictions, familiar security events, irrelevant novelty, and incomplete source extraction. Include sources beyond AI news, such as hobbyist hardware and home-automation project blogs, forums and repositories, so extraction is not tuned to one kind of writing.
 
 Also write down one or two of your own guides as they stand today (for example "Raspberry Pi home automation" or "Recommended skills every project should have") and, for some collected articles, the guide change you would expect: add, update, warning, retire, or no useful change.
 
@@ -51,7 +51,7 @@ Deltas affecting guide entries produce update, warning or retire proposals with 
 
 ## Milestone 6: Private deployment and first daily trial
 
-Verify standalone install and backup restore before optional infrastructure integration. Configure private HTTPS ingress through the installer's infrastructure workflow; n8n/Telegram remain optional and are not gates for the trial. Test unavailable inference, index catch-up, pending visibility and quiet backfill; test delivery failures if notifications are enabled. Evaluate whether the reader surfaces worthwhile discoveries/updates without repeated cards or missed important events, and whether guide proposals are useful. A guide review backlog never delays news. Keep suppression in shadow mode unless reviewed evaluation supports explicit enablement with easy rollback.
+Onboarding and familiarity follow the phased plan in [ADR 0005](decisions/0005-progressive-onboarding.md) (proposed); the trial needs at least its Phase A familiarity core. Verify standalone install and backup restore before optional infrastructure integration. Configure private HTTPS ingress through the installer's infrastructure workflow; n8n/Telegram remain optional and are not gates for the trial. Test unavailable inference, index catch-up, pending visibility and quiet backfill; test delivery failures if notifications are enabled. Evaluate whether the reader surfaces worthwhile discoveries/updates without repeated cards or missed important events, and whether guide proposals are useful. A guide review backlog never delays news. Keep suppression in shadow mode unless reviewed evaluation supports explicit enablement with easy rollback.
 
 This repository is public and AGPL-3.0 licensed from its initial commit. That is not an installability claim: provide sanitized examples, deployment/auth guidance and exercised supported architectures before claiming a supported application distribution.
 

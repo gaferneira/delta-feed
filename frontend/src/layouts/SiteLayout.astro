@@ -1,5 +1,5 @@
 ---
-import '../styles/global.css';
+import BaseHead from './BaseHead.astro';
 
 interface Props {
   title: string;
@@ -10,11 +10,7 @@ const { title, description = 'A quiet place for useful reading.' } = Astro.props
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content={description} />
-    <meta name="robots" content="noindex, nofollow" />
-    <title>{title} · Delta Feed</title>
+    <BaseHead title={title} description={description} />
   </head>
   <body>
     <header class="site-header">

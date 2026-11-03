@@ -1,0 +1,84 @@
+---
+import BareLayout from '../layouts/BareLayout.astro';
+import { loadSetupState, setupPageRedirect } from '../lib/setup';
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+const redirect = setupPageRedirect(await loadSetupState(Astro.request.headers.get('cookie')));
+if (redirect) return Astro.redirect(redirect);
+---
+<BareLayout title="Set up" description="Create the first account for your Delta Feed reader.">
+  <section class="page-heading">
+    <p class="eyebrow">First run</p>
+    <h1>Create your account</h1>
+    <p class="lede">This instance has no account yet. The setup token proves you have access to the server.</p>
+  </section>
+  <form class="panel form-stack" id="setup-form" novalidate>
+    <div class="field">
+      <label for="token">Setup token</label>
+      <input id="token" name="token" autocomplete="off" autocapitalize="none" spellcheck="false" required aria-describedby="token-hint" />
+      <small id="token-hint">The token is printed in the server logs, or run <code>manage.py setup_token</code> on the server.</small>
+    </div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" name="username" autocomplete="username" autocapitalize="none" required />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required />
+    </div>
+    <div class="field">
+      <label for="confirm">Confirm password</label>
+      <input id="confirm" name="confirm" type="password" autocomplete="new-password" required />
+    </div>
+    <button class="primary-button" type="submit">Create account</button>
+    <p class="form-message" id="setup-message" role="alert" aria-live="assertive"></p>
+  </form>
+</BareLayout>
+<script>
+  import { apiRequest } from '../lib/api/browser';
+  import { validateSetupForm } from '../lib/setup';
+
+  const form = document.querySelector<HTMLFormElement>('#setup-form');
+  const message = document.querySelector<HTMLElement>('#setup-message');
+  const button = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+  if (button) button.disabled = true;
+
+  try {
+    await apiRequest('/session/setup');
+    if (button) button.disabled = false;
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : 'Secure setup is unavailable.';
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const values = new FormData(form);
+    const input = {
+      token: String(values.get('token') ?? ''),
+      username: String(values.get('username') ?? ''),
+      password: String(values.get('password') ?? ''),
+      confirm: String(values.get('confirm') ?? ''),
+    };
+    // Client-side check is a convenience only; the backend is authoritative.
+    const problem = validateSetupForm(input);
+    if (problem) {
+      if (message) message.textContent = problem;
+      return;
+    }
+    if (button) button.disabled = true;
+    if (message) message.textContent = '';
+
+    try {
+      const result = await apiRequest<{ redirect?: string }>('/session/setup', {
+        method: 'POST',
+        body: JSON.stringify({ token: input.token, username: input.username, password: input.password }),
+      });
+      window.location.assign(result.redirect || '/');
+    } catch (error) {
+      if (message) message.textContent = error instanceof Error ? error.message : 'Setup failed.';
+      if (button) button.disabled = false;
+    }
+  });
+</script>

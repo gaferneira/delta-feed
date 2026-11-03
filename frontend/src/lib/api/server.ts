@@ -297,3 +297,25 @@ export async function proxyLogin(
     redirect: 'manual',
   });
 }
+
+export async function proxySetup(
+  input: { token: string; username: string; password: string },
+  cookie?: string | null,
+  csrfToken?: string | null,
+): Promise<Response> {
+  const headers = new Headers({
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  });
+  const forwardedCookies = allowedCookieHeader(cookie);
+  if (forwardedCookies) headers.set('Cookie', forwardedCookies);
+  if (csrfToken) headers.set('X-CSRFToken', csrfToken);
+
+  return fetch(backendUrl('/api/accounts/setup'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+    cache: 'no-store',
+    redirect: 'manual',
+  });
+}

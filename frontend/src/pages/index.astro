@@ -1,5 +1,6 @@
 ---
 import ArticleCard from '../components/ArticleCard.astro';
+import { loginLocation } from '../lib/auth-gate';
 import SiteLayout from '../layouts/SiteLayout.astro';
 import { ServerApiError, serverApiRequest } from '../lib/api/server';
 import type { FeedPage, FeedView } from '../lib/api/types';
@@ -21,9 +22,9 @@ try {
     { cookie: Astro.request.headers.get('cookie') },
   );
 } catch (error) {
-  loadError = error instanceof ServerApiError && error.status === 401
-    ? 'Sign in to see your personal feed.'
-    : 'The feed is temporarily unavailable.';
+  // An expired session mid-visit goes back to sign-in rather than rendering an error.
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = 'The feed is temporarily unavailable.';
 }
 
 function pageHref(nextOffset: number): string {

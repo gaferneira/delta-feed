@@ -1,5 +1,6 @@
 ---
 import { httpUrl } from '../../lib/url';
+import { loginLocation } from '../../lib/auth-gate';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 import { ServerApiError, serverListSources } from '../../lib/api/server';
 import type { Source } from '../../lib/sources/types';
@@ -12,9 +13,9 @@ let loadError = '';
 try {
   sources = await serverListSources(Astro.request.headers.get('cookie'));
 } catch (error) {
-  loadError = error instanceof ServerApiError && error.status === 401
-    ? 'Sign in to manage your sources.'
-    : 'Your sources are temporarily unavailable.';
+  // An expired session mid-visit goes back to sign-in rather than rendering an error.
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = 'Your sources are temporarily unavailable.';
 }
 
 function sourceStatus(source: Source): { label: string; className: string } {

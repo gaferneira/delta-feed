@@ -24,6 +24,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
 </SiteLayout>
 <script>
   import { apiRequest } from '../lib/api/browser';
+  import { safeNextPath } from '../lib/url';
 
   const form = document.querySelector<HTMLFormElement>('#login-form');
   const message = document.querySelector<HTMLElement>('#login-message');
@@ -49,7 +50,8 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         method: 'POST',
         body: JSON.stringify({ username: values.get('username'), password: values.get('password') }),
       });
-      window.location.assign(result.redirect || '/');
+      const next = new URLSearchParams(window.location.search).get('next');
+      window.location.assign(next !== null ? safeNextPath(next) : result.redirect || '/');
     } catch (error) {
       if (message) message.textContent = error instanceof Error ? error.message : 'Sign in failed.';
       if (button) button.disabled = false;

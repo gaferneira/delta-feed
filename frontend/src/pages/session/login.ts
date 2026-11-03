@@ -1,22 +1,8 @@
 import type { APIRoute } from 'astro';
 import { csrfBootstrap, proxyLogin } from '../../lib/api/server';
+import { forwardSetCookies, getCsrfCookie } from '../../lib/api/session';
 
 export const prerender = false;
-
-function getCsrfCookie(cookie: string | null): string | undefined {
-  const match = cookie?.match(/(?:^|; )csrftoken=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : undefined;
-}
-
-function forwardSetCookies(upstream: Response, headers: Headers): void {
-  const cookies = (upstream.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.();
-  if (cookies?.length) {
-    for (const cookie of cookies) headers.append('Set-Cookie', cookie);
-  } else {
-    const cookie = upstream.headers.get('set-cookie');
-    if (cookie) headers.append('Set-Cookie', cookie);
-  }
-}
 
 export const GET: APIRoute = async ({ request }) => {
   try {

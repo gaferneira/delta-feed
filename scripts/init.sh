@@ -8,6 +8,7 @@
 #
 # What this does:
 #   - backend: uv sync (creates/updates the venv from uv.lock) + migrate
+#   - backend: prompts for the first user if none exists (interactive only)
 #   - frontend: npm install
 #
 # Usage: ./scripts/init.sh
@@ -33,6 +34,21 @@ uv run python manage.py migrate
 
 echo "==> Backend: django check"
 uv run python manage.py check
+
+# The reader has no sign-up; without a user the login screen is a dead end.
+echo "==> Backend: initial user"
+if uv run python manage.py shell -v 0 -c \
+  "import sys; from django.contrib.auth import get_user_model; sys.exit(0 if get_user_model().objects.exists() else 1)"; then
+  echo "A user already exists; skipping."
+elif [ -t 0 ]; then
+  echo "No user yet. Create the account you will sign in with:"
+  uv run python manage.py createsuperuser
+else
+  echo "No user yet and no terminal to prompt. Create one later with:"
+  echo "  cd backend && uv run python manage.py createsuperuser"
+  echo "or open /setup in the reader with a token from the backend logs or:"
+  echo "  cd backend && uv run python manage.py setup_token"
+fi
 
 echo "==> Frontend: npm install"
 cd "$ROOT_DIR/frontend"
