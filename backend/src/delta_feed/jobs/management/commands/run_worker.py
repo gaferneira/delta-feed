@@ -2,7 +2,10 @@ import time
 
 from django.core.management.base import BaseCommand
 
+from delta_feed.content.use_cases import schedule_due_polls
 from delta_feed.jobs.services import claim_job, execute_claimed_job
+
+SCHEDULE_CHECK_SECONDS = 60
 
 
 class Command(BaseCommand):
@@ -17,7 +20,14 @@ class Command(BaseCommand):
         interval = max(0.1, options["poll_interval"])
         max_jobs = max(0, options["max_jobs"])
         processed = 0
+        next_schedule = 0.0
         while True:
+            # Recurring polls are scheduled by the worker itself, at most once a minute.
+            if time.monotonic() >= next_schedule:
+                scheduled = schedule_due_polls()
+                if scheduled:
+                    self.stdout.write(f"Scheduled RSS polls for {len(scheduled)} source(s).")
+                next_schedule = time.monotonic() + SCHEDULE_CHECK_SECONDS
             job = claim_job()
             if job is not None:
                 execute_claimed_job(job)

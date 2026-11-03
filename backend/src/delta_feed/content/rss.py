@@ -1,14 +1,16 @@
 import calendar
 import hashlib
 import ipaddress
+import logging
 import socket
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from html.parser import HTMLParser
 from urllib.parse import quote, urljoin, urlsplit
 
 import feedparser
 import requests
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.utils import timezone
@@ -25,6 +27,8 @@ MAX_REDIRECTS = 3
 CONNECT_TIMEOUT_SECONDS = 3
 READ_TIMEOUT_SECONDS = 5
 TOTAL_FETCH_SECONDS = 15
+
+logger = logging.getLogger(__name__)
 
 
 class _TextExtractor(HTMLParser):
@@ -245,8 +249,44 @@ def _entry_content(entry) -> tuple[str, str, str, str, datetime | None]:
     return external_id, link, title or link, _plain_text(raw_body), _published_at(entry)
 
 
+class EntryBeforeCutoff(ValueError):
+    """A not-yet-stored item predates the source's backfill cutoff; it is history, not news."""
+
+
+def _select_backfill_entries(entries, cutoff: datetime, max_items: int):
+    """Pick the entries a bounded backfill imports, newest first.
+
+    Dated entries inside the window come first (newest publication first), then
+    undated ones in feed order, all capped at ``max_items``. Returns
+    (selected, skipped_outside_window, skipped_over_cap, trimmed_through) where
+    ``trimmed_through`` is the publication date of the newest dated entry the cap
+    left out (None when the cap trimmed no dated entry).
+    """
+    dated, undated, outside_window = [], [], 0
+    for entry in entries:
+        published = _published_at(entry)
+        if published is None:
+            undated.append(entry)
+        elif published < cutoff:
+            outside_window += 1
+        else:
+            dated.append((published, entry))
+    dated.sort(key=lambda pair: pair[0], reverse=True)
+    candidates = [entry for _published, entry in dated] + undated
+    trimmed_through = dated[max_items][0] if max_items < len(dated) else None
+    return (
+        candidates[:max_items], outside_window, max(0, len(candidates) - max_items),
+        trimmed_through,
+    )
+
+
 def _apply_entry(
-    source: Source, entry, fetched_at: datetime, *, backfill: bool = False
+    source: Source,
+    entry,
+    fetched_at: datetime,
+    *,
+    backfill: bool = False,
+    min_published_at: datetime | None = None,
 ) -> None:
     # The entry identity is source-scoped. The database constraint also protects
     # retries and concurrent workers from creating duplicate observations.
@@ -266,6 +306,10 @@ def _apply_entry(
                     source__isnull=True, url=url
                 ).first()
             if article is None:
+                if min_published_at is not None and published_at is not None and (
+                    published_at < min_published_at
+                ):
+                    raise EntryBeforeCutoff("RSS item predates the source backfill cutoff")
                 article = Article.objects.create(
                     source=source,
                     external_id=external_id,
@@ -337,8 +381,14 @@ def _apply_entry(
             raise
 
 
-def poll_rss_source(payload: dict) -> int:
-    """Fetch one configured RSS source; persist observations quietly and idempotently."""
+def poll_rss_source(payload: dict) -> dict:
+    """Fetch one configured RSS source; persist observations quietly and idempotently.
+
+    A backfill poll imports only the bounded recent history (BACKFILL_DAYS and
+    BACKFILL_MAX_ITEMS). A later poll skips not-yet-stored items older than the
+    source's stored cutoff, so history the backfill trimmed never becomes news.
+    Returns the counts recorded as the job result.
+    """
     source_id = payload.get("source_id")
     if not isinstance(source_id, int):
         raise TypeError("RSS job requires a source_id")
@@ -356,24 +406,57 @@ def poll_rss_source(payload: dict) -> int:
         if parsed.bozo and not parsed.entries:
             raise ValueError("Malformed RSS feed")
         backfill = payload.get("backfill") is True
+        window = timedelta(days=settings.BACKFILL_DAYS)
+        cutoff = source.backfill_cutoff
+        if cutoff is None:
+            # First import fixes the cutoff; a source that somehow skipped its
+            # backfill is anchored to when it was registered.
+            cutoff = (attempted_at if backfill else source.created_at) - window
+        # Feedparser entries are mappings; avoid modifying the parser-owned data.
+        entries = [dict(entry, _feed_url=source.rss_feed_url) for entry in parsed.entries]
+        skipped_window = skipped_cap = 0
+        if backfill:
+            entries, skipped_window, skipped_cap, trimmed_through = _select_backfill_entries(
+                entries, cutoff, settings.BACKFILL_MAX_ITEMS
+            )
+            if trimmed_through is not None:
+                # The item cap left recent entries out; they are history too, or a later
+                # poll would import them as current and flood Today. Skip everything
+                # published at or before the newest one the cap trimmed.
+                cutoff = max(cutoff, trimmed_through + timedelta(microseconds=1))
         count = 0
-        skipped = 0
-        for entry in parsed.entries:
-            # Feedparser entries are mappings; avoid modifying the parser-owned data.
-            entry = dict(entry)
-            entry["_feed_url"] = source.rss_feed_url
+        skipped_links = 0
+        for entry in entries:
             try:
-                _apply_entry(source, entry, attempted_at, backfill=backfill)
+                _apply_entry(
+                    source, entry, attempted_at, backfill=backfill,
+                    min_published_at=None if backfill else cutoff,
+                )
             except InvalidEntryLink:
-                skipped += 1
+                skipped_links += 1
+                continue
+            except EntryBeforeCutoff:
+                skipped_window += 1
                 continue
             count += 1
         # Skipped items stay visible to the operator without failing the feed.
-        note = f"Skipped {skipped} item(s) with missing or non-http(s) links" if skipped else ""
-        Source.objects.filter(pk=source.pk).update(
-            last_fetch_at=attempted_at, last_error=note, consecutive_failures=0
+        note = (
+            f"Skipped {skipped_links} item(s) with missing or non-http(s) links"
+            if skipped_links else ""
         )
-        return count
+        Source.objects.filter(pk=source.pk).update(
+            last_fetch_at=attempted_at, last_error=note, consecutive_failures=0,
+            backfill_cutoff=cutoff,
+        )
+        result = {
+            "backfill": backfill,
+            "imported": count,
+            "skipped_outside_window": skipped_window,
+            "skipped_over_cap": skipped_cap,
+            "skipped_invalid_link": skipped_links,
+        }
+        logger.info("RSS poll of source %s finished: %s", source.pk, result)
+        return result
     except Exception as exc:
         # Keep a compact operational error; no response body or credentials are stored.
         error = type(exc).__name__

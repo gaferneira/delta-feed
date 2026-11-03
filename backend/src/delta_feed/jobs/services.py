@@ -96,7 +96,7 @@ def _mark_failed(job: Job, error: Exception) -> None:
 
 def execute_claimed_job(job: Job) -> bool:
     try:
-        _get_handler(job.handler_name)(job.payload)
+        result = _get_handler(job.handler_name)(job.payload)
     except Exception as error:  # noqa: BLE001 - persist any handler failure for durable retry
         _mark_failed(job, error)
         return False
@@ -108,6 +108,7 @@ def execute_claimed_job(job: Job) -> bool:
             lease_expires_at=None,
             lease_token=None,
             last_error="",
+            result=result if isinstance(result, dict) else {},
             updated_at=timezone.now(),
         )
     )

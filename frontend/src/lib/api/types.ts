@@ -14,6 +14,7 @@ export interface FeedItem {
   source_name: string | null;
   is_backfill: boolean;
   published_at: string | null;
+  discovered_at: string;
 }
 
 export interface FeedPage {
@@ -22,6 +23,8 @@ export interface FeedPage {
   limit: number;
   offset: number;
   has_more: boolean;
+  /** Today only: articles from the last 24 hours beyond the budget. */
+  more_count: number;
 }
 
 export type FeedView = 'today' | 'backfill' | 'all';

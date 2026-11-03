@@ -1,6 +1,6 @@
 # ADR 0003: Selective hexagonal backend
 
-**Status:** Accepted architectural direction. Detailed port payloads, persistence schemas and implementation remain pending.
+**Status:** Accepted.
 
 ## Decision
 
@@ -18,6 +18,6 @@ Full hexagonal layering adds interfaces/mapping to routine CRUD without demonstr
 
 Pure domain tests establish business-rule behavior, not persistence reliability. Real PostgreSQL integration tests must verify uniqueness, leases, stale-state rechecks, atomic publication and concurrent processing. Network/model calls occur outside long-lived database transactions; final writes revalidate relevant baseline state.
 
-## Remaining decisions
+## Deferred
 
-Atomic acceptance scopes are set in [ADR 0004](0004-content-and-ingestion-defaults.md). Detailed port payloads, persistence schemas, correction mechanics and durable job implementation remain to be designed and tested. Acceptance does not authorize a generic framework, migration, deployment or commit.
+Atomic acceptance scopes are set in [ADR 0004](0004-content-and-ingestion-defaults.md). Detailed port payloads, persistence schemas, correction mechanics and durable job design. Acceptance does not authorize a generic framework.

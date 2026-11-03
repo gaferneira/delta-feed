@@ -1,6 +1,6 @@
 # ADR 0004: Content and ingestion defaults
 
-**Status:** Accepted defaults; implementation and exact schema/operational values pending.
+**Status:** Accepted.
 
 ## Decision
 
@@ -19,8 +19,8 @@ Use separate atomic acceptance boundaries for ingestion, knowledge/news and guid
 
 ## Consequences
 
-Adds guide proposals/revisions, observation ordering, correction audit and independent state axes. Delivery is staged: the reader slice first, then manual guides without AI, safe ingestion/jobs, discovery and delta analysis in shadow mode (which also produce reviewable guide proposals), and finally private deployment with a daily trial. Guide entries are an explicit familiarity signal for novelty and can seed the Following watchlist. Guide review never blocks news acceptance. No arbitrary recommendation auto-approval or exact accuracy promises.
+Adds guide proposals/revisions, observation ordering, correction audit and independent state axes. Discovery and delta analysis start in shadow mode and also produce reviewable guide proposals; the staging is in the [roadmap](../roadmap.md). Guide entries are an explicit familiarity signal for novelty and can seed the Following watchlist. Guide review never blocks news acceptance. No arbitrary recommendation auto-approval or exact accuracy promises.
 
 ## Deferred
 
-Exact DB tables/indexes and port DTOs, numerical limits/retry windows/retention durations, source ordering adapters, model selection/quality thresholds, sophisticated ranking, and offline/multi-user support. Set security/resource limits before exposing endpoints; set retention explicitly before purging or storing restricted sources. Acceptance does not mean these values are tested.
+Exact DB tables/indexes and port DTOs, numerical limits/retry windows/retention durations, source ordering adapters, model selection/quality thresholds, sophisticated ranking, and offline/multi-user support. Set security/resource limits before exposing endpoints; set retention explicitly before purging or storing restricted sources.

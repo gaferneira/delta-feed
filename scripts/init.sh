@@ -62,11 +62,16 @@ cat <<'EOF'
 
 ==> Done.
 
-Run the backend dev server:
-  cd backend && DJANGO_DEBUG=true uv run python manage.py runserver 8000
+Start everything together (backend, worker, frontend; Ctrl-C stops all):
+  ./scripts/dev.sh
 
-Run the frontend dev server (in another shell):
+Or run the pieces yourself, each in its own shell:
+  cd backend && DJANGO_DEBUG=true uv run python manage.py runserver 8000
+  cd backend && DJANGO_DEBUG=true uv run python manage.py run_worker
   cd frontend && BACKEND_URL=http://localhost:8000 npm run dev
+
+The worker fetches your sources and schedules recurring polls. Without it the
+reader runs, but no new articles arrive and Today stays empty.
 
 Run the test suites:
   cd backend && uv run pytest -q

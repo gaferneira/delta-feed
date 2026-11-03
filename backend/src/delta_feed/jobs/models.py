@@ -20,6 +20,8 @@ class Job(models.Model):
     lease_token = models.UUIDField(null=True, blank=True)
     attempt_count = models.PositiveIntegerField(default=0)
     last_error = models.TextField(blank=True)
+    # Compact, non-sensitive outcome reported by the handler (e.g. skipped counts).
+    result = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

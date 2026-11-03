@@ -10,6 +10,10 @@ class Source(models.Model):
     rss_feed_url = models.URLField(max_length=2048, blank=True)
     last_fetch_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
+    # Oldest publication date the bounded initial import accepts (first backfill
+    # poll time minus BACKFILL_DAYS). Stored so recurring polls skip the history
+    # the backfill deliberately left out, even if the setting changes later.
+    backfill_cutoff = models.DateTimeField(null=True, blank=True)
     consecutive_failures = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

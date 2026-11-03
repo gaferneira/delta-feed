@@ -3,6 +3,8 @@ import socket
 import subprocess
 import sys
 import threading
+import time
+from email.utils import formatdate
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import Mock, patch
 
@@ -50,7 +52,9 @@ def make_source(name="Publisher"):
     return Source.objects.create(name=name, rss_feed_url="https://publisher.example/feed.xml")
 
 
-def rss_item(link, *, guid="g1", title="T", desc="Body", pub="Tue, 03 Nov 2026 10:00:00 GMT"):
+def rss_item(link, *, guid="g1", title="T", desc="Body", pub=...):
+    if pub is ...:
+        pub = formatdate(time.time() - 3600, usegmt=True)
     pub_xml = f"<pubDate>{pub}</pubDate>" if pub else ""
     return (
         '<rss version="2.0"><channel><title>F</title><item>'
@@ -79,8 +83,9 @@ def client(user):
 )
 def test_rss_items_with_non_http_links_are_skipped_not_stored(link):
     feed_source = make_source()
-    count = poll(feed_source, rss_item(link.replace("&", "&amp;")))
-    assert count == 0
+    result = poll(feed_source, rss_item(link.replace("&", "&amp;")))
+    assert result["imported"] == 0
+    assert result["skipped_invalid_link"] == 1
     assert Article.objects.count() == 0
     feed_source.refresh_from_db()
     assert "Skipped 1" in feed_source.last_error
@@ -294,7 +299,7 @@ def test_feed_query_count_is_constant_and_includes_source_name(client):
             source=feed_source, url=f"https://example.org/a{index}", title="t", body="b"
         )
     with CaptureQueriesContext(connection) as small:
-        client.get("/api/reader/feed")
+        client.get("/api/reader/feed?view=all&limit=100")
     for index in range(10):
         Article.objects.create(url=f"https://example.org/m{index}", title="t", body="b")
     with CaptureQueriesContext(connection) as large:

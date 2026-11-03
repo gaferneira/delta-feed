@@ -1,6 +1,6 @@
 # ADR 0005: Progressive onboarding and familiarity
 
-**Status:** Proposed. Step 0 (first-run account creation with a setup token) and a minimal form of step 1 (topics and starter-pack sources at `/onboarding`) are implemented; the remaining phases below are a plan, not delivered behavior.
+**Status:** Proposed. Delivery phases and implementation notes live in the [roadmap](../roadmap.md#adr-0005-progressive-onboarding).
 
 ## Context
 
@@ -12,8 +12,8 @@ Novelty means "new to you", so Delta Feed needs a per-user baseline of what the 
 
 Keep the required setup minimal, and build familiarity progressively while reading.
 
-0. **Account (first run only):** when no user exists, the reader asks for a one-time setup token printed in the server logs, then creates the first account. Without the token, whoever reaches a fresh instance first could claim it. `scripts/init.sh` covers this for local development by prompting for the first user. *Implemented:* a 24-hour token, stored only as a hash, is logged once at WARNING when `/api/accounts/setup-status` is first requested on an empty instance; `/setup` consumes it, and `manage.py setup_token` rotates it when the logs are lost.
-1. **Setup (required, about a minute):** pick topics, choose sources. Starter packs suggest sources for a topic; none are pre-selected, because packs are expected to grow. *Implemented in a minimal form:* after the first login, a user with no completed onboarding is sent to `/onboarding` before any reader page, picks starter-pack topics, ticks the packs' feeds they want (all start unticked), and finishes or skips; both mark it complete (`ReaderProfile.onboarding_completed_at`; accounts that existed when this shipped were marked complete by a data migration). Finishing upserts the shared `Topic` rows (in `knowledge`), records the user's `TopicSelection`, and registers each chosen feed through the ordinary source use case, attached to its topic, which queues the usual quiet backfill. Only feeds from the chosen packs are accepted here; custom feeds still use the Sources page. There are no delivery levels, topic parents, exclusions or entity links yet, and no watchlist or guide offer.
+0. **Account (first run only):** when no user exists, the reader asks for a one-time setup token printed in the server logs, then creates the first account. Without the token, whoever reaches a fresh instance first could claim it. The token expires, is stored only as a hash, and can be rotated from the command line when the logs are lost.
+1. **Setup (required, about a minute):** pick topics, choose sources. Starter packs suggest sources for a topic; none are pre-selected, because packs are expected to grow. Setup is skippable, and the chosen sources get the usual quiet backfill.
 2. **First-session triage (optional):** after the quiet backfill, show the entities most mentioned in the reader's *own* sources and let them tap the ones they already know.
 3. **While reading (ongoing):** "Already knew this" on a card, plus a roundup shortcut ("I knew all of these except…"), records familiarity.
 4. **Import (any time):** a CSV in the [known template](../templates/known.csv) columns (documented in [baseline-corpus.md](../baseline-corpus.md#step-1-write-your-baseline)), through a management command first and the UI later.
@@ -46,25 +46,11 @@ Priority is set per **topic**; an **entity** inherits its topics' level unless t
 - **Notifications are optional.** `notify` affects ordering from day one; sending notifications requires a configured integration.
 - Delivery level is independent of familiarity: a reader can `use` something and keep it at `show`.
 
-## Delivery plan
-
-Each phase ships with tests and doesn't begin until its prerequisite works.
-
-| Phase | Scope | Prerequisite |
-|---|---|---|
-| A. Familiarity core | `Topic` model; per-user familiarity with an append-only change history; "Already knew this" API records familiarity; delivery levels (topic default, entity override) and feed ordering; `manage.py import_known <csv>` | None (no AI, no new UI beyond the card action) |
-| B. Minimal setup | First-account creation guarded by a one-time setup token; starter-pack format, loader and validation; first-run topics + sources screen; triggers quiet backfill. *Delivered ahead of Phase A, without delivery levels or familiarity.* | Phase A; recurring RSS polling (README next step) |
-| C. Triage and bulk | Most-mentioned-entities triage after backfill; roundup "all except…" action; calibration label | Extraction wired into the worker and run on real articles |
-| D. Nudges and notifications | Suggestions from repeated dismissals, thresholds tuned on trial data; significant-event notifications for `notify` items | Milestone 6 daily trial data; claim/event classification; a configured notification integration |
-
-[Milestone 0](../roadmap.md#milestone-0-real-examples) informs the formats: the import columns and the triage list should be checked against real collected baselines before Phase A freezes them.
-
 ## Consequences
 
 - Adds `Topic`, per-user familiarity and per-user delivery levels; familiarity becomes an input to novelty classification, and delivery level an input to feed ordering.
 - Onboarding stays short and every step is skippable. The cost is a noisy first week, softened by quiet backfill, triage and the calibration label.
 - Starter packs give the community a contribution path that contains no private data.
-- Once accepted, update content-policy's onboarding section and the glossary to match.
 
 ## Deferred
 

@@ -3,24 +3,46 @@ import ArticleCard from '../components/ArticleCard.astro';
 import { loginLocation } from '../lib/auth-gate';
 import SiteLayout from '../layouts/SiteLayout.astro';
 import { ServerApiError, serverApiRequest } from '../lib/api/server';
-import type { FeedPage, FeedView } from '../lib/api/types';
+import type { FeedItem, FeedPage, FeedView } from '../lib/api/types';
+import {
+  WORKER_COMMAND,
+  importProgressLabel,
+  selectTodayEmptyState,
+  type ImportStatus,
+} from '../lib/today-state';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 
 const PAGE_SIZE = 25;
+const MORE_PAGE_SIZE = 100;
 const requestedView = Astro.url.searchParams.get('view');
-const view: FeedView = requestedView === 'backfill' ? 'backfill' : 'today';
+const view: FeedView = requestedView === 'backfill' ? 'backfill' : requestedView === 'all' ? 'all' : 'today';
+const showMore = view === 'today' && Astro.url.searchParams.get('more') === '1';
 const rawOffset = Number(Astro.url.searchParams.get('offset'));
 const offset = Number.isInteger(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+const cookie = Astro.request.headers.get('cookie');
 
 let feed: FeedPage | null = null;
+let moreFeed: FeedPage | null = null;
+let importStatus: ImportStatus | null = null;
 let loadError = '';
 try {
-  feed = await serverApiRequest<FeedPage>(
-    `/api/reader/feed?view=${view}&limit=${PAGE_SIZE}&offset=${offset}`,
-    { cookie: Astro.request.headers.get('cookie') },
-  );
+  if (view === 'today') {
+    // Today is a bounded selection chosen by the backend; "more" lists the rest of the day.
+    feed = await serverApiRequest<FeedPage>(`/api/reader/feed?view=today&limit=${MORE_PAGE_SIZE}`, { cookie });
+    if (showMore) {
+      moreFeed = await serverApiRequest<FeedPage>(
+        `/api/reader/feed?view=today&more=true&limit=${MORE_PAGE_SIZE}&offset=${offset}`,
+        { cookie },
+      );
+    }
+    if (feed.items.length === 0 && feed.more_count === 0) {
+      importStatus = await serverApiRequest<ImportStatus>('/api/content/import-status', { cookie }).catch(() => null);
+    }
+  } else {
+    feed = await serverApiRequest<FeedPage>(`/api/reader/feed?view=${view}&limit=${PAGE_SIZE}&offset=${offset}`, { cookie });
+  }
 } catch (error) {
   // An expired session mid-visit goes back to sign-in rather than rendering an error.
   if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
@@ -29,12 +51,41 @@ try {
 
 function pageHref(nextOffset: number): string {
   const params = new URLSearchParams({ view });
+  if (showMore) params.set('more', '1');
   if (nextOffset > 0) params.set('offset', String(nextOffset));
   return `/?${params}`;
 }
+function cardProps(article: FeedItem) {
+  const found = view === 'today';
+  return {
+    id: article.article_id,
+    title: article.title || 'Untitled article',
+    source: article.source_name ?? 'Manual submission',
+    url: article.url,
+    excerpt: article.excerpt,
+    timestamp: found ? article.discovered_at : article.published_at,
+    timestampKind: found ? ('found' as const) : ('published' as const),
+    isBackfill: article.is_backfill,
+    isRead: article.is_read,
+    isSaved: article.is_saved,
+  };
+}
+
 const articles = feed?.items ?? [];
-const previousOffset = feed && feed.offset > 0 ? Math.max(0, feed.offset - feed.limit) : null;
-const nextOffset = feed?.has_more ? feed.offset + feed.limit : null;
+const moreArticles = moreFeed?.items ?? [];
+const moreCount = feed?.more_count ?? 0;
+// Today's budget list is not paginated; the other lists (and "more from today") are.
+const pager = view === 'today' ? moreFeed : feed;
+const previousOffset = pager && pager.offset > 0 ? Math.max(0, pager.offset - pager.limit) : null;
+const nextOffset = pager?.has_more ? pager.offset + pager.limit : null;
+const showPager = pager !== null && (view !== 'today' ? true : previousOffset !== null || nextOffset !== null);
+const emptyState = selectTodayEmptyState(importStatus);
+const progress = importStatus ? importProgressLabel(importStatus) : '';
+const viewNotes: Record<FeedView, string> = {
+  today: 'Fresh from your sources in the last 24 hours, a few from each so no single publisher takes over.',
+  backfill: 'Articles imported from your sources\u2019 recent history. They are kept out of Today so it only shows what is new.',
+  all: 'Everything, newest first: Today, Earlier and your own submissions.',
+};
 ---
 <SiteLayout title="Your feed" description="Your saved reading, rendered privately on demand.">
   <section class="page-heading">
@@ -43,43 +94,84 @@ const nextOffset = feed?.has_more ? feed.offset + feed.limit : null;
     <p class="lede">A clear view of what is worth your attention.</p>
     <nav class="feed-views" aria-label="Feed view">
       <a href="/?view=today" aria-current={view === 'today' ? 'page' : undefined}>Today</a>
-      {' · '}
-      <a href="/?view=backfill" aria-current={view === 'backfill' ? 'page' : undefined}>Backfill</a>
+      <a href="/?view=backfill" aria-current={view === 'backfill' ? 'page' : undefined}>Earlier</a>
+      <a href="/?view=all" aria-current={view === 'all' ? 'page' : undefined}>All</a>
     </nav>
+    <p class="view-note">{viewNotes[view]}</p>
   </section>
 
   {loadError ? (
     <div class="error-state" role="status">
       {loadError} <a href="/login">Sign in</a> or try refreshing this page.
     </div>
-  ) : articles.length ? (
+  ) : articles.length || moreCount > 0 ? (
     <>
-      <div class="article-list" aria-label="Articles">
-        {articles.map((article) => (
-          <ArticleCard article={{
-            id: article.article_id,
-            title: article.title || 'Untitled article',
-            source: article.source_name ?? 'Manual submission',
-            url: article.url,
-            excerpt: article.excerpt,
-            publishedAt: article.published_at,
-            isBackfill: article.is_backfill,
-            isRead: article.is_read,
-            isSaved: article.is_saved,
-          }} />
-        ))}
-      </div>
-      <nav class="feed-pagination" aria-label="Feed pages">
-        {previousOffset !== null ? <a rel="prev" href={pageHref(previousOffset)}>Previous</a> : null}
-        {feed && <span class="muted-copy"> {feed.offset + 1}–{feed.offset + articles.length} of {feed.total} </span>}
-        {nextOffset !== null ? <a rel="next" href={pageHref(nextOffset)}>Next</a> : null}
-      </nav>
+      {articles.length > 0 && (
+        <div class="article-list" aria-label="Articles">
+          {articles.map((article) => <ArticleCard article={cardProps(article)} />)}
+        </div>
+      )}
+      {view === 'today' && moreCount > 0 && !showMore && (
+        <a class="more-link" href="/?view=today&more=1#more-from-today">
+          Show {moreCount} more from today
+        </a>
+      )}
+      {showMore && (
+        <section class="more-from-today" id="more-from-today" aria-labelledby="more-from-today-heading">
+          <h2 id="more-from-today-heading">More from today <span class="muted-copy">({moreCount})</span></h2>
+          <div class="article-list" aria-label="More articles from today">
+            {moreArticles.map((article) => <ArticleCard article={cardProps(article)} />)}
+          </div>
+          <a class="more-link" href="/?view=today">Show fewer</a>
+        </section>
+      )}
+      {showPager && pager && (
+        <nav class="feed-pagination" aria-label="Feed pages">
+          {previousOffset !== null ? <a rel="prev" href={pageHref(previousOffset)}>Previous</a> : null}
+          <span class="muted-copy"> {pager.offset + 1}–{pager.offset + pager.items.length} of {pager.total} </span>
+          {nextOffset !== null ? <a rel="next" href={pageHref(nextOffset)}>Next</a> : null}
+        </nav>
+      )}
     </>
+  ) : view === 'backfill' ? (
+    <div class="friendly-state">
+      <h2>No earlier articles yet</h2>
+      <p>Once your sources finish their first fetch, their recent history will show up here.</p>
+      <p class="state-links"><a href="/?view=today">Back to Today</a><a href="/sources">Sources</a></p>
+    </div>
+  ) : view === 'all' ? (
+    <div class="friendly-state">
+      <h2>Nothing here yet</h2>
+      <p>Add a source or an article and it will appear here.</p>
+      <p class="state-links"><a href="/sources">Sources</a><a href="/submit">Add an article</a></p>
+    </div>
+  ) : emptyState === 'no-sources' ? (
+    <div class="friendly-state">
+      <h2>Let&rsquo;s choose what to follow</h2>
+      <p>You have no sources yet. Pick a starter pack or add a feed, and new articles will show up here.</p>
+      <p class="state-links"><a href="/onboarding">Browse starter packs</a><a href="/sources">Add a source</a></p>
+    </div>
+  ) : emptyState === 'importing' ? (
+    <div class="friendly-state" role="status" data-auto-refresh>
+      <h2>Fetching your sources&hellip;</h2>
+      <p>New articles will appear here. Meanwhile, browse Earlier.</p>
+      {progress && <p class="progress-hint">{progress}</p>}
+      <p class="state-links"><a href="/?view=backfill">Browse Earlier</a><a href="/sources">Sources</a></p>
+    </div>
+  ) : emptyState === 'worker-stopped' ? (
+    <div class="friendly-state" role="status">
+      <h2>Your sources are waiting for the worker</h2>
+      <p>Nothing is wrong. Fetching happens in a small background process that is not running right now. Start it in another terminal:</p>
+      <code>{WORKER_COMMAND}</code>
+      <p>Or run <code>scripts/dev.sh</code> to start everything together. In the meantime, browse Earlier.</p>
+      <p class="state-links"><a href="/?view=backfill">Browse Earlier</a><a href="/sources">Sources</a></p>
+    </div>
   ) : (
-    <p class="empty-state">
-      {view === 'backfill' ? 'No backfilled articles yet.' : 'Nothing new today.'}
-      {' '}<a href="/submit">Add an article</a> to get started.
-    </p>
+    <div class="friendly-state">
+      <h2>You&rsquo;re all caught up</h2>
+      <p>Nothing new in the last 24 hours. We check your sources regularly, so new articles will show up here.</p>
+      <p class="state-links"><a href="/?view=backfill">Browse Earlier</a><a href="/sources">Sources</a><a href="/submit">Add an article</a></p>
+    </div>
   )}
 </SiteLayout>
 
@@ -122,4 +214,11 @@ const nextOffset = feed?.has_more ? feed.offset + feed.limit : null;
       });
     });
   });
+</script>
+
+<script>
+  // Progressive enhancement: while sources are importing, check back for new articles.
+  if (document.querySelector('[data-auto-refresh]')) {
+    window.setTimeout(() => window.location.reload(), 20_000);
+  }
 </script>

@@ -1,6 +1,8 @@
 import json
 import socket
+import time
 from datetime import timedelta
+from email.utils import formatdate
 from unittest.mock import Mock, patch
 
 import pytest
@@ -16,10 +18,17 @@ from delta_feed.reader.models import ReadState
 
 pytestmark = pytest.mark.django_db
 
-RSS_BODY = b'''<?xml version="1.0"?><rss version="2.0"><channel><title>Feed</title>
-<item><guid>entry-1</guid><title>First release</title><link>https://publisher.example/a1</link>
-<description>Article body</description><pubDate>Tue, 03 Nov 2026 10:00:00 GMT</pubDate></item>
-</channel></rss>'''
+# Dated relative to now: a bounded backfill only imports recent entries.
+RSS_BODY = (
+    '<?xml version="1.0"?><rss version="2.0"><channel><title>Feed</title>'
+    "<item><guid>entry-1</guid><title>First release</title><link>https://publisher.example/a1</link>"
+    f"<description>Article body</description><pubDate>{formatdate(time.time() - 3600, usegmt=True)}</pubDate></item>"
+    "</channel></rss>"
+).encode()
+
+
+def days_ago(days):
+    return formatdate(time.time() - days * 86400, usegmt=True)
 
 
 def source(**overrides):
@@ -254,9 +263,9 @@ def test_older_revision_is_retained_without_replacing_current_snapshot():
     from delta_feed.content.rss import poll_rss_source
 
     responses = [
-        mocked_response(rss("Tue, 03 Nov 2026 10:00:00 GMT", "First", "v1")),
-        mocked_response(rss("Wed, 04 Nov 2026 10:00:00 GMT", "Newer", "v2")),
-        mocked_response(rss("Mon, 02 Nov 2026 10:00:00 GMT", "Delayed replay", "old")),
+        mocked_response(rss(days_ago(2), "First", "v1")),
+        mocked_response(rss(days_ago(1), "Newer", "v2")),
+        mocked_response(rss(days_ago(3), "Delayed replay", "old")),
     ]
     with patch("delta_feed.content.rss.socket.getaddrinfo", side_effect=public_dns), patch(
         "delta_feed.content.rss.requests.Session.get", side_effect=responses

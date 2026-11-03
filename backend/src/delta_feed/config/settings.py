@@ -14,6 +14,16 @@ def _env_flag(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes"}
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    try:
+        return max(0, int(value))
+    except ValueError as exc:
+        raise ImproperlyConfigured(f"{name} must be a non-negative integer") from exc
+
+
 _INSECURE_DEV_KEY = "insecure-development-key-do-not-use-in-production"
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", _INSECURE_DEV_KEY)
 DEBUG = _env_flag("DJANGO_DEBUG", False)
@@ -130,6 +140,14 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Versioned starter packs (topic + suggested feeds) offered during onboarding.
 STARTER_PACKS_DIR = Path(os.environ.get("STARTER_PACKS_DIR", str(BASE_DIR.parent / "starter-packs")))
+
+# Attention budgets (ADR 0006, Phase A). Ingestion is bounded at first import and
+# polled on a schedule; Today shows a limited, source-diverse selection.
+BACKFILL_DAYS = _env_int("BACKFILL_DAYS", 30)
+BACKFILL_MAX_ITEMS = _env_int("BACKFILL_MAX_ITEMS", 20)
+RSS_POLL_INTERVAL_MINUTES = _env_int("RSS_POLL_INTERVAL_MINUTES", 30)
+TODAY_BUDGET = _env_int("TODAY_BUDGET", 12)
+TODAY_PER_SOURCE_CAP = _env_int("TODAY_PER_SOURCE_CAP", 3)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"

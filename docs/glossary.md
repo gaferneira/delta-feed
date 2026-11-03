@@ -10,7 +10,7 @@ One word per idea. Use these terms consistently in docs, code and UI.
 - **Receipt:** the durable record that an ingestion request was accepted.
 - **Article:** a source document, identified by its source plus URL or external ID.
 - **Revision:** an immutable version of an article's content. Changed content creates a new revision; unchanged content shares one.
-- **Backfill:** importing older content when a source is added. It stays quiet (out of Today) and unread.
+- **Backfill:** importing recent history when a source is added: at most the last 30 days and 20 items per source by default. It stays quiet (out of Today) and unread, and the reader labels it "Earlier".
 
 ## Knowledge
 

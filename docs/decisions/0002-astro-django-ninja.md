@@ -1,6 +1,6 @@
 # ADR 0002: Astro SSR reader with Django Ninja API
 
-**Status:** Accepted; implementation and version compatibility unverified.
+**Status:** Accepted.
 
 ## Context
 
@@ -22,8 +22,4 @@ Private news renders on demand, never as build-time personalized pages. Sessions
 
 ## Trade-offs
 
-Adds a Node build/runtime and API/auth coordination. Astro is chosen for frontend structure and selective interactivity, not for processing or database throughput. This ADR does not approve implementation scaffolding.
-
-## First proof
-
-Exercise login → persisted article → Astro SSR feed → Django Ninja save/read → persisted reload, plus missing/invalid CSRF, session expiry, unauthorized access, generated-type build from a clean checkout, and private-cache isolation. No AI needed for this slice.
+Adds a Node build/runtime and API/auth coordination. Astro is chosen for frontend structure and selective interactivity, not for processing or database throughput. The first proof of this stack is [Milestone 1](../roadmap.md#milestone-1-reader-vertical-slice-no-ai).

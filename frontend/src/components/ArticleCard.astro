@@ -1,5 +1,6 @@
 ---
 import { httpUrl } from '../lib/url';
+import { absoluteTime, relativeTime } from '../lib/time';
 
 interface Props {
   article: {
@@ -8,7 +9,9 @@ interface Props {
     source: string;
     url?: string | null;
     excerpt?: string;
-    publishedAt?: string | null;
+    /** When the article was found (Today) or published (Earlier, All). */
+    timestamp?: string | null;
+    timestampKind?: 'found' | 'published';
     isBackfill?: boolean;
     isRead: boolean;
     isSaved: boolean;
@@ -16,14 +19,25 @@ interface Props {
 }
 const { article } = Astro.props;
 const href = httpUrl(article.url);
+const relative = relativeTime(article.timestamp);
+const absolute = absoluteTime(article.timestamp);
+const timeTitle = `${article.timestampKind === 'published' ? 'Published' : 'Found'} ${absolute}`;
 ---
 <article class="article-card" data-article-card data-article-id={article.id}>
   <div class="article-copy">
-    <p class="article-source">{article.source}</p>
+    <p class="article-meta">
+      <span class="article-source">{article.source}</span>
+      {relative && (
+        <>
+          <span aria-hidden="true"> · </span>
+          <time class="article-time" datetime={article.timestamp ?? undefined} title={timeTitle}>{relative}</time>
+        </>
+      )}
+    </p>
     <h2>{href ? <a href={href} target="_blank" rel="noopener noreferrer">{article.title}</a> : article.title}</h2>
     {article.excerpt && <p class="article-excerpt">{article.excerpt}</p>}
     <div class="article-state" aria-label="Article status">
-      {article.isBackfill && <span class="state-indicator">Backfill</span>}
+      {article.isBackfill && <span class="state-indicator">Earlier</span>}
       <span class:list={['state-indicator', { active: article.isRead }]} data-read-indicator>
         {article.isRead ? 'Read' : 'Unread'}
       </span>
