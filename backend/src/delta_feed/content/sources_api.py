@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from django.db import transaction
 from django.http import HttpRequest
 from ninja import Field, Router, Schema
 from ninja.responses import Status
@@ -8,7 +7,7 @@ from pydantic import field_validator
 
 from delta_feed.content.models import Source
 from delta_feed.content.urls import safe_http_url
-from delta_feed.jobs.services import enqueue_job
+from delta_feed.content.use_cases import register_source
 
 router = Router(tags=["content sources"])
 
@@ -49,15 +48,9 @@ class SourceRegistrationResult(Schema):
 
 @router.post("/sources", response={201: SourceRegistrationResult})
 def register_rss_source(request: HttpRequest, payload: SourceRegistration):
-    with transaction.atomic():
-        source = Source.objects.create(
-            name=payload.name,
-            rss_feed_url=payload.rss_feed_url,
-            homepage_url=payload.homepage_url,
-        )
-        job = enqueue_job(
-            job_type="rss.poll",
-            payload={"source_id": source.pk, "backfill": True},
-            handler_name="content.poll_rss",
-        )
-    return Status(201, {"source_id": source.pk, "backfill_job_id": job.pk})
+    source, job_id = register_source(
+        name=payload.name,
+        rss_feed_url=payload.rss_feed_url,
+        homepage_url=payload.homepage_url,
+    )
+    return Status(201, {"source_id": source.pk, "backfill_job_id": job_id})

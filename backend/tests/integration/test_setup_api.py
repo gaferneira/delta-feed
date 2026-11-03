@@ -96,7 +96,10 @@ def test_setup_creates_superuser_deletes_token_and_logs_in(caplog):
     user = get_user_model().objects.get(username="owner")
     assert user.is_superuser and user.is_staff and user.check_password(GOOD_PASSWORD)
     assert SetupToken.objects.count() == 0
-    assert client.get("/api/accounts/session").json() == {"authenticated": True}
+    assert client.get("/api/accounts/session").json() == {
+        "authenticated": True,
+        "onboarding_complete": False,
+    }
     assert Client().get("/api/accounts/setup-status").json() == {"needs_setup": False}
     assert SetupToken.objects.count() == 0
 

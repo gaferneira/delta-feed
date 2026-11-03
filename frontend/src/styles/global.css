@@ -115,6 +115,27 @@ h1 { margin: 0; font-size: clamp(2rem, 6vw, 3rem); letter-spacing: -.055em; line
 .source-health dt { color: var(--muted); }
 .source-health dd { margin: 0; font-weight: 600; }
 .source-last-error { margin: .8rem 0 0; border-left: 2px solid #d88a7f; padding-left: .65rem; color: #8e362b; font-size: .82rem; line-height: 1.5; overflow-wrap: anywhere; }
+.secondary-button { border: 1px solid #cbd6ce; border-radius: 8px; background: #fff; color: var(--ink); padding: .8rem 1.2rem; cursor: pointer; font-weight: 700; }
+.secondary-button:hover { background: var(--green-soft); }
+.secondary-button:disabled { opacity: .65; cursor: wait; }
+.onboarding-step h2 { margin: 0 0 1rem; font-size: 1.15rem; }
+.onboarding-step h2:focus { outline: none; }
+.onboarding-step[hidden], .feed-group[hidden] { display: none; }
+.topic-grid { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+.topic-card, .feed-option { display: flex; align-items: flex-start; gap: .75rem; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+.topic-card:has(input:checked) { border-color: var(--green); background: var(--green-soft); }
+.topic-card:has(input:focus-visible), .feed-option:has(input:focus-visible) { outline: 3px solid #78b49a; outline-offset: 2px; }
+.topic-card input, .feed-option input { flex-shrink: 0; width: 1.2rem; height: 1.2rem; margin-top: .15rem; accent-color: var(--green); }
+.topic-card-body { display: grid; gap: .25rem; }
+.topic-card-title { font-weight: 700; }
+.topic-card-description, .topic-card-meta { color: var(--muted); font-size: .85rem; line-height: 1.45; }
+.feed-group { display: grid; gap: .6rem; margin: 0 0 1.2rem; padding: 0; border: 0; min-width: 0; }
+.feed-group legend { margin-bottom: .6rem; padding: 0; font-weight: 700; }
+.feed-option { align-items: center; }
+.feed-option > span { display: grid; gap: .15rem; min-width: 0; }
+.feed-name { font-weight: 600; }
+.feed-homepage { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+.onboarding-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; }
 @media (max-width: 600px) {
   .site-header { padding: 1rem; }
   nav { gap: .75rem; flex-wrap: wrap; justify-content: flex-end; }

@@ -1,0 +1,144 @@
+---
+import BareLayout from '../layouts/BareLayout.astro';
+import { loginLocation } from '../lib/auth-gate';
+import { ServerApiError, serverGetOnboarding } from '../lib/api/server';
+import { httpUrl } from '../lib/url';
+import type { OnboardingState } from '../lib/onboarding';
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+let state: OnboardingState = { packs: [], selected_topics: [] };
+let loadError = '';
+try {
+  state = await serverGetOnboarding(Astro.request.headers.get('cookie'));
+} catch (error) {
+  // An expired session mid-visit goes back to sign-in rather than rendering an error.
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = 'Starter topics are temporarily unavailable. You can skip for now and add sources later.';
+}
+const selected = new Set(state.selected_topics);
+// Escaped so pack text can never close the script element.
+const packsJson = JSON.stringify(state.packs).replace(/</g, '\\u003c');
+---
+<BareLayout title="Welcome" description="Choose topics and sources to start your Delta Feed reader.">
+  <section class="page-heading">
+    <p class="eyebrow">Welcome</p>
+    <h1>Set up your reader</h1>
+    <p class="lede">Pick a few topics and confirm the sources that go with them. Each source starts with a quiet backfill, so nothing is announced as new.</p>
+  </section>
+
+  <form class="panel form-stack" id="onboarding-form" novalidate>
+    <section class="onboarding-step" id="step-topics" aria-labelledby="step-topics-heading">
+      <h2 id="step-topics-heading" tabindex="-1">1. Choose topics</h2>
+      {loadError && <div class="error-state" role="status">{loadError}</div>}
+      <div class="topic-grid">
+        {state.packs.map((pack) => (
+          <label class="topic-card">
+            <input type="checkbox" name="topic" value={pack.slug} checked={selected.has(pack.slug)} />
+            <span class="topic-card-body">
+              <span class="topic-card-title">{pack.title}</span>
+              <span class="topic-card-description">{pack.description}</span>
+              <span class="topic-card-meta">{pack.feeds.length} suggested {pack.feeds.length === 1 ? 'source' : 'sources'}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div class="onboarding-actions">
+        {state.packs.length > 0 && <button class="primary-button" type="button" id="to-sources">Continue</button>}
+        <button class="secondary-button" type="button" data-skip>Skip for now</button>
+      </div>
+    </section>
+
+    <section class="onboarding-step" id="step-sources" aria-labelledby="step-sources-heading" hidden>
+      <h2 id="step-sources-heading" tabindex="-1">2. Choose sources</h2>
+      <p class="lede">Tick the sources you want to follow. You can add or change sources later on the Sources page.</p>
+      {state.packs.map((pack) => (
+        <fieldset class="feed-group" data-pack={pack.slug} hidden>
+          <legend>{pack.title}</legend>
+          {pack.feeds.map((feed) => (
+            <label class="feed-option">
+              <input type="checkbox" name="feed" value={feed.feed_url} />
+              <span>
+                <span class="feed-name">{feed.name}</span>
+                {httpUrl(feed.homepage_url)
+                  ? <a class="feed-homepage" href={httpUrl(feed.homepage_url)} target="_blank" rel="noopener noreferrer">{new URL(feed.homepage_url).host}</a>
+                  : null}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      ))}
+      <div class="onboarding-actions">
+        <button class="primary-button" type="submit">Finish</button>
+        <button class="secondary-button" type="button" id="to-topics">Back</button>
+        <button class="secondary-button" type="button" data-skip>Skip for now</button>
+      </div>
+    </section>
+    <p class="form-message" id="onboarding-message" role="alert" aria-live="assertive"></p>
+  </form>
+  <script type="application/json" id="onboarding-packs" set:html={packsJson}></script>
+</BareLayout>
+<script>
+  import { apiRequest, completeOnboarding, skipOnboarding } from '../lib/api/browser';
+  import { buildCompletion, onboardingErrorMessage, topicStepError, type StarterPack } from '../lib/onboarding';
+
+  const form = document.querySelector<HTMLFormElement>('#onboarding-form')!;
+  const message = document.querySelector<HTMLElement>('#onboarding-message')!;
+  const packs: StarterPack[] = JSON.parse(document.querySelector('#onboarding-packs')?.textContent || '[]');
+  const stepTopics = document.querySelector<HTMLElement>('#step-topics')!;
+  const stepSources = document.querySelector<HTMLElement>('#step-sources')!;
+
+  const selectedTopics = () =>
+    [...form.querySelectorAll<HTMLInputElement>('input[name="topic"]:checked')].map((input) => input.value);
+  const checkedFeeds = () =>
+    [...form.querySelectorAll<HTMLInputElement>('input[name="feed"]:checked')].map((input) => input.value);
+
+  function show(step: HTMLElement, other: HTMLElement) {
+    other.hidden = true;
+    step.hidden = false;
+    step.querySelector<HTMLElement>('h2')?.focus();
+  }
+
+  // Only the CSRF cookie is needed before a mutation; the form still works if this fails.
+  apiRequest('/api/accounts/csrf').catch(() => undefined);
+
+  document.querySelector('#to-sources')?.addEventListener('click', () => {
+    const topics = selectedTopics();
+    const problem = topicStepError(topics);
+    message.textContent = problem || '';
+    if (problem) return;
+    for (const group of form.querySelectorAll<HTMLElement>('.feed-group')) {
+      group.hidden = !topics.includes(group.dataset.pack || '');
+    }
+    show(stepSources, stepTopics);
+  });
+  document.querySelector('#to-topics')?.addEventListener('click', () => {
+    message.textContent = '';
+    show(stepTopics, stepSources);
+  });
+
+  function setBusy(busy: boolean) {
+    for (const button of form.querySelectorAll<HTMLButtonElement>('button')) button.disabled = busy;
+  }
+
+  async function run(action: () => Promise<unknown>) {
+    message.textContent = '';
+    setBusy(true);
+    try {
+      await action();
+      window.location.assign('/');
+    } catch (error) {
+      message.textContent = onboardingErrorMessage(error);
+      setBusy(false);
+    }
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    // The backend is authoritative; this only drops unchecked or stale feeds.
+    void run(() => completeOnboarding(buildCompletion(packs, selectedTopics(), checkedFeeds())));
+  });
+  for (const button of form.querySelectorAll('[data-skip]')) {
+    button.addEventListener('click', () => void run(() => skipOnboarding()));
+  }
+</script>

@@ -2,7 +2,7 @@
 
 A self-hosted reader with two jobs: show you what is actually new (unfamiliar projects and meaningful updates) without repeating what you already know, and keep your own reference articles up to date.
 
-> **Status:** early, local-only. The reader, guides, RSS ingestion and claim API are implemented and covered by automated tests (backend 146 pytest, frontend 60 vitest + Astro build) against a SQLite dev DB. Several pieces are built but not wired together, and nothing has been deployed or run against real data. See [Project status](#project-status).
+> **Status:** early, local-only. The reader, guides, RSS ingestion and claim API are implemented and covered by automated tests (backend 180+ pytest, frontend 100+ vitest + Astro build) against a SQLite dev DB. Several pieces are built but not wired together, and nothing has been deployed or run against real data. See [Project status](#project-status).
 
 ## The problem
 
@@ -48,7 +48,7 @@ Everything ships as one repository and one Compose installation. Built-in RSS an
 This section is the single place that tracks project status; other documents link here.
 
 - **Decided:** standalone modular monolith ([ADR 0001](docs/decisions/0001-modular-monolith.md)), Astro + Django Ninja ([ADR 0002](docs/decisions/0002-astro-django-ninja.md)), selective hexagonal backend ([ADR 0003](docs/decisions/0003-selective-hexagonal-backend.md)), content and ingestion defaults ([ADR 0004](docs/decisions/0004-content-and-ingestion-defaults.md)).
-- **Proposed:** progressive onboarding and familiarity ([ADR 0005](docs/decisions/0005-progressive-onboarding.md)), with phased delivery; only step 0 is implemented: first-run account creation at `/setup`, guarded by a one-time token logged by the backend or printed by `cd backend && uv run python manage.py setup_token` (rotates the token; refuses once a user exists). Covered by automated tests only, not exercised in a browser.
+- **Proposed:** progressive onboarding and familiarity ([ADR 0005](docs/decisions/0005-progressive-onboarding.md)), with phased delivery; only step 0 is implemented: first-run account creation at `/setup`, guarded by a one-time token logged by the backend or printed by `cd backend && uv run python manage.py setup_token` (rotates the token; refuses once a user exists). Covered by automated tests only, not exercised in a browser. Step 1 is also implemented minimally: a user who has not finished onboarding is sent to `/onboarding` to pick topics and confirm starter-pack feeds from `starter-packs/` (or skip), which registers them as sources with a quiet backfill; tested and smoke-tested with curl, not exercised in a browser.
 - **Verified by automated tests only (SQLite dev DB, mocked network, no live browser/end-to-end run):**
   - [Milestone 1](docs/roadmap.md#milestone-1-reader-vertical-slice-no-ai): login, manual submission, paginated reader feed (Today / Backfill), read/save state.
   - [Milestone 2](docs/roadmap.md#milestone-2-manual-guides-no-ai): manual guides with optimistic-concurrency revisions.

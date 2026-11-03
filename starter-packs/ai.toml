@@ -1,0 +1,24 @@
+schema_version = 1
+slug = "ai"
+title = "AI"
+description = "Model releases, research write-ups and local AI runtimes."
+
+[[feeds]]
+name = "Simon Willison's Weblog"
+feed_url = "https://simonwillison.net/atom/everything/"
+homepage_url = "https://simonwillison.net/"
+
+[[feeds]]
+name = "Hugging Face blog"
+feed_url = "https://huggingface.co/blog/feed.xml"
+homepage_url = "https://huggingface.co/blog"
+
+[[feeds]]
+name = "OpenAI news"
+feed_url = "https://openai.com/news/rss.xml"
+homepage_url = "https://openai.com/news/"
+
+[[feeds]]
+name = "Ollama releases"
+feed_url = "https://github.com/ollama/ollama/releases.atom"
+homepage_url = "https://github.com/ollama/ollama"

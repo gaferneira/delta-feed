@@ -40,7 +40,21 @@ export function createAuthGate(checkSession: (cookie: string) => Promise<boolean
   };
 }
 
-export async function fetchSessionAuthenticated(cookie: string): Promise<boolean | null> {
-  const session = await serverApiRequest<{ authenticated: boolean }>('/api/accounts/session', { cookie }).catch(() => null);
-  return typeof session?.authenticated === 'boolean' ? session.authenticated : null;
+export interface SessionPayload {
+  authenticated: boolean;
+  /** null when the backend did not report it. */
+  onboardingComplete: boolean | null;
+}
+
+/** The session verdict for a cookie, or null when the backend cannot say. */
+export async function fetchSession(cookie: string): Promise<SessionPayload | null> {
+  const session = await serverApiRequest<{ authenticated: boolean; onboarding_complete?: boolean }>(
+    '/api/accounts/session',
+    { cookie },
+  ).catch(() => null);
+  if (typeof session?.authenticated !== 'boolean') return null;
+  return {
+    authenticated: session.authenticated,
+    onboardingComplete: typeof session.onboarding_complete === 'boolean' ? session.onboarding_complete : null,
+  };
 }

@@ -45,9 +45,11 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False
 # Origins of the public reader (scheme://host[:port]) that may submit unsafe requests.
+# Local development defaults to the Astro dev server; real deployments must set it explicitly.
+_DEV_TRUSTED_ORIGINS = "http://localhost:4321,http://127.0.0.1:4321" if DEBUG else ""
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
-    for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", _DEV_TRUSTED_ORIGINS).split(",")
     if origin.strip()
 ]
 if _env_flag("DJANGO_BEHIND_TLS_PROXY", False):
@@ -125,6 +127,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# Versioned starter packs (topic + suggested feeds) offered during onboarding.
+STARTER_PACKS_DIR = Path(os.environ.get("STARTER_PACKS_DIR", str(BASE_DIR.parent / "starter-packs")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"

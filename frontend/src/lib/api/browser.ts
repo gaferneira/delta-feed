@@ -7,6 +7,7 @@ import type {
   GuideEntryUpdate,
   GuideProposal,
 } from '../guides/types';
+import type { OnboardingCompletion } from '../onboarding';
 import type { ItemsResponse } from './types';
 import type { Source, SourceRegistrationInput, SourceRegistrationResult } from '../sources/types';
 
@@ -99,6 +100,14 @@ export function registerSource(source: SourceRegistrationInput, fetcher?: FetchL
     method: 'POST',
     body: JSON.stringify(source),
   }, fetcher);
+}
+
+export function completeOnboarding(choices: OnboardingCompletion, fetcher?: FetchLike): Promise<unknown> {
+  return apiRequest('/api/onboarding/complete', { method: 'POST', body: JSON.stringify(choices) }, fetcher);
+}
+
+export function skipOnboarding(fetcher?: FetchLike): Promise<unknown> {
+  return apiRequest('/api/onboarding/skip', { method: 'POST' }, fetcher);
 }
 
 export async function listGuideDefinitions(fetcher?: FetchLike): Promise<GuideDefinition[]> {

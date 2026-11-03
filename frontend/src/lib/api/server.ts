@@ -7,6 +7,7 @@ import type {
   GuideEntryUpdate,
   GuideProposal,
 } from '../guides/types';
+import type { OnboardingState } from '../onboarding';
 import type { ItemsResponse } from './types';
 import type { Source, SourceRegistrationInput, SourceRegistrationResult } from '../sources/types';
 
@@ -181,6 +182,10 @@ export function serverRegisterSource(
   return serverApiRequest<SourceRegistrationResult>('/api/content/sources', {
     cookie, method: 'POST', body: JSON.stringify(source),
   });
+}
+
+export function serverGetOnboarding(cookie?: string | null): Promise<OnboardingState> {
+  return serverApiRequest<OnboardingState>('/api/onboarding', { cookie });
 }
 
 export async function serverListGuideDefinitions(cookie?: string | null): Promise<GuideDefinition[]> {

@@ -21,6 +21,7 @@ delta-feed/
 │   ├── development-workflow.md
 │   ├── roadmap.md
 │   └── decisions/
+├── starter-packs/                 # Reviewed TOML topic + feed packs offered at onboarding (README inside)
 ├── frontend/                      # Planned Astro project; no code yet
 │   ├── package.json
 │   ├── package-lock.json
@@ -48,9 +49,9 @@ delta-feed/
 │   │   ├── core/                   # Framework-free novelty/guide policy only (ADR 0003)
 │   │   ├── application/            # Use cases, meaningful ports, accepted DTOs
 │   │   ├── adapters/               # External/ORM port implementations only as needed
-│   │   ├── accounts/              # Django auth/preferences; not custom sessions
-│   │   ├── content/               # Sources/articles/revisions/ingestion contracts
-│   │   ├── knowledge/             # Identities/topics/claims/evidence
+│   │   ├── accounts/              # Django auth/preferences, onboarding state; not custom sessions
+│   │   ├── content/               # Sources/articles/revisions/ingestion contracts; source registration use case
+│   │   ├── knowledge/             # Identities/topics/claims/evidence; Topic model and starter-pack loader
 │   │   ├── analysis/              # Pipeline, policy and run provenance
 │   │   │   ├── contracts/          # Provider output validation, not core types
 │   │   │   └── prompts/            # Versioned analysis task input
@@ -77,14 +78,14 @@ Business modules own Django records and ordinary CRUD. The target dependency dir
 
 core/, application/ and adapters/ hold only the novelty pipeline and guide policy described in ADR 0003. Everything else, including ordinary CRUD for content, knowledge, reader and accounts, lives in its business module as plain Django. Rule of thumb: if a rule does not need to run without Django, it belongs in its business module, not core/.
 
-- content owns source/article revisions and ingestion; collectors/API share the same use case.
-- knowledge owns entity identities, topics, evidence and scoped claims.
+- content owns source/article revisions and ingestion; collectors/API share the same use case. Source registration (and its one-time quiet backfill job) is one use case shared by the Sources API and onboarding.
+- knowledge owns entity identities, topics, evidence and scoped claims. `Topic` (shared, stable slug, many-to-many with `content.Source`) and the strict loader for `starter-packs/` live here; `STARTER_PACKS_DIR` overrides the directory.
 - analysis owns task schemas, prompts and run provenance; application coordinates core policy and adapters for extraction/matching/acceptance. Provider proposals are not direct writes.
 - guides owns curated definitions, entries, personal prose, proposed changes and revisions; approved changes use expected-revision checks in a separate use case/transaction.
 - reader owns publication/read/save/feedback data; Astro owns its presentation.
 - jobs owns allowlisted durable handlers/leases, not business verdicts.
 - delivery owns outbox attempts; external sends are outside transactions.
-- accounts reuses Django auth. API routes are thin adapters; backend authz remains mandatory.
+- accounts reuses Django auth. It also owns per-user onboarding state (`ReaderProfile`, `TopicSelection`) and the onboarding use case, which calls content's source registration and knowledge's topics. API routes are thin adapters; backend authz remains mandatory.
 
 Django models/migrations stay in business modules; nontrivial knowledge reads/acceptance use adapters that satisfy application ports. Simple CRUD can remain Django services. Atomic scopes follow docs/content-policy.md; explicit transaction-owning adapters/services, no generic unit-of-work framework initially. No source-to-inference or UI-to-database shortcuts. Avoid circular dependencies, holding transactions across remote calls, or a giant utils module.
 

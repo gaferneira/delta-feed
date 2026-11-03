@@ -1,0 +1,24 @@
+schema_version = 1
+slug = "developer-tooling"
+title = "Developer tooling"
+description = "Editors, IDEs, containers and the platforms developers use every day."
+
+[[feeds]]
+name = "GitHub Changelog"
+feed_url = "https://github.blog/changelog/feed/"
+homepage_url = "https://github.blog/changelog/"
+
+[[feeds]]
+name = "Visual Studio Code updates"
+feed_url = "https://code.visualstudio.com/feed.xml"
+homepage_url = "https://code.visualstudio.com/updates"
+
+[[feeds]]
+name = "JetBrains blog"
+feed_url = "https://blog.jetbrains.com/feed/"
+homepage_url = "https://blog.jetbrains.com/"
+
+[[feeds]]
+name = "Docker blog"
+feed_url = "https://www.docker.com/blog/feed/"
+homepage_url = "https://www.docker.com/blog/"

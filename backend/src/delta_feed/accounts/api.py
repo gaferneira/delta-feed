@@ -11,7 +11,7 @@ from django.utils import timezone
 from ninja import Router, Schema
 from ninja.errors import HttpError
 
-from delta_feed.accounts import setup
+from delta_feed.accounts import onboarding, setup
 from delta_feed.accounts.models import SetupToken
 
 router = Router(tags=["accounts"])
@@ -71,7 +71,10 @@ def logout_view(request: HttpRequest):
 
 @router.get("/session", auth=None)
 def session_view(request: HttpRequest):
-    return {"authenticated": request.user.is_authenticated}
+    return {
+        "authenticated": request.user.is_authenticated,
+        "onboarding_complete": onboarding.is_onboarding_complete(request.user),
+    }
 
 
 @router.get("/setup-status", auth=None)

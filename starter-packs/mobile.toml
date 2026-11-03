@@ -1,0 +1,24 @@
+schema_version = 1
+slug = "mobile"
+title = "Mobile"
+description = "Android, iOS and cross-platform development: platform releases, languages and frameworks."
+
+[[feeds]]
+name = "Android Developers Blog"
+feed_url = "https://android-developers.googleblog.com/feeds/posts/default"
+homepage_url = "https://android-developers.googleblog.com/"
+
+[[feeds]]
+name = "Kotlin blog"
+feed_url = "https://blog.jetbrains.com/kotlin/feed/"
+homepage_url = "https://blog.jetbrains.com/kotlin/"
+
+[[feeds]]
+name = "Apple Developer news"
+feed_url = "https://developer.apple.com/news/rss/news.rss"
+homepage_url = "https://developer.apple.com/news/"
+
+[[feeds]]
+name = "Flutter blog"
+feed_url = "https://medium.com/feed/flutter"
+homepage_url = "https://medium.com/flutter"

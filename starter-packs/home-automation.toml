@@ -1,0 +1,24 @@
+schema_version = 1
+slug = "home-automation"
+title = "Home automation"
+description = "Open-source smart home platforms, firmware and protocols."
+
+[[feeds]]
+name = "Home Assistant blog"
+feed_url = "https://www.home-assistant.io/atom.xml"
+homepage_url = "https://www.home-assistant.io/blog/"
+
+[[feeds]]
+name = "Home Assistant Core releases"
+feed_url = "https://github.com/home-assistant/core/releases.atom"
+homepage_url = "https://github.com/home-assistant/core/releases"
+
+[[feeds]]
+name = "ESPHome releases"
+feed_url = "https://github.com/esphome/esphome/releases.atom"
+homepage_url = "https://github.com/esphome/esphome/releases"
+
+[[feeds]]
+name = "Zigbee2MQTT releases"
+feed_url = "https://github.com/Koenkk/zigbee2mqtt/releases.atom"
+homepage_url = "https://github.com/Koenkk/zigbee2mqtt/releases"

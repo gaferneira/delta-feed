@@ -23,6 +23,22 @@ class Entity(models.Model):
         return self.name
 
 
+class Topic(models.Model):
+    """Shared topic with a stable slug; sources attach to it, readers select it."""
+
+    slug = models.SlugField(max_length=60, unique=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    sources = models.ManyToManyField("content.Source", blank=True, related_name="topics")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["slug"]  # noqa: RUF012
+
+    def __str__(self):
+        return self.title
+
+
 class EntityEmbedding(models.Model):
     """Versioned entity vector stored portably as a JSON list of floats."""
 
