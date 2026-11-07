@@ -4,15 +4,13 @@ import os
 from typing import TypeVar
 
 import requests
+from django.conf import settings
 from pydantic import BaseModel
 
 from delta_feed.analysis.contracts.extraction import ExtractionResult
+from delta_feed.analysis.providers import InferenceUnavailableError
 
 OutputModel = TypeVar("OutputModel", bound=BaseModel)
-
-
-class InferenceUnavailableError(RuntimeError):
-    """Raised when local inference is not configured or cannot be reached."""
 
 
 class OllamaLanguageModel:
@@ -21,15 +19,18 @@ class OllamaLanguageModel:
         *,
         host: str | None = None,
         model: str | None = None,
-        timeout: float = 30.0,
+        timeout: float | None = None,
     ) -> None:
         self.host = host if host is not None else os.environ.get("OLLAMA_HOST")
         self.model = model if model is not None else os.environ.get("OLLAMA_MODEL")
-        self.timeout = timeout
+        self.timeout = timeout if timeout is not None else settings.ANALYSIS_TIMEOUT_SECONDS
 
     @property
     def model_version(self) -> str:
         return f"ollama:{self.model}" if self.model else "ollama:unconfigured"
+
+    def is_configured(self) -> bool:
+        return bool(self.host and self.model)
 
     def analyze(
         self,
@@ -55,6 +56,8 @@ class OllamaLanguageModel:
                     "prompt": prompt,
                     "stream": False,
                     "format": output_schema.model_json_schema(),
+                    # Extraction should be repeatable, not creative.
+                    "options": {"temperature": 0},
                 },
                 timeout=self.timeout,
             )

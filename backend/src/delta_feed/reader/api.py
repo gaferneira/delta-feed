@@ -9,6 +9,7 @@ from django.utils import timezone
 from ninja import Query, Router, Schema
 from ninja.errors import HttpError
 
+from delta_feed.analysis.models import AnalysisRun
 from delta_feed.content.models import Article
 from delta_feed.reader.models import ReadState, SaveState
 from delta_feed.reader.today import select_today
@@ -65,6 +66,22 @@ class FeedItem(Schema):
     is_backfill: bool
     published_at: datetime | None
     discovered_at: datetime
+    # Extraction state of the current revision; unanalysed is shown, never hidden.
+    analysis_status: Literal["unanalysed", "analysed", "failed"]
+
+
+def _current_run(**filters):
+    return AnalysisRun.objects.filter(
+        source_article=OuterRef("pk"),
+        article_revision__version=OuterRef("current_version"),
+        **filters,
+    )
+
+
+def _analysis_status(row) -> str:
+    if row["is_analysed"]:
+        return "analysed"
+    return "failed" if row["is_analysis_failed"] else "unanalysed"
 
 
 class FeedPage(Schema):
@@ -128,11 +145,16 @@ def feed(
                     user=request.user, article=OuterRef("pk"), is_saved=True
                 )
             ),
+            is_analysed=Exists(_current_run(status=AnalysisRun.Status.COMPLETED)),
+            is_analysis_failed=Exists(
+                _current_run(failure_reason=AnalysisRun.FailureReason.INVALID_OUTPUT)
+            ),
         )
         .order_by(*ordering)
         .values(
             "id", "url", "title", "excerpt", "current_version", "is_read",
             "is_saved", "source_name", "is_backfill", "published_at", "created_at",
+            "is_analysed", "is_analysis_failed",
         )[offset : offset + limit]
     )
     return {
@@ -149,6 +171,7 @@ def feed(
                 "is_backfill": row["is_backfill"],
                 "published_at": row["published_at"],
                 "discovered_at": row["created_at"],
+                "analysis_status": _analysis_status(row),
             }
             for row in rows
         ],

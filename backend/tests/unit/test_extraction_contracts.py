@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from delta_feed.analysis.contracts.extraction import (
     EXTRACTION_SCHEMA_ID,
     ExtractionResult,
-    validate_evidence_spans,
+    resolve_evidence,
 )
 
 
@@ -16,7 +16,7 @@ def valid_result():
                 "ref": "entity-1",
                 "name": "Widget",
                 "entity_type": "software",
-                "evidence": [{"start": 0, "end": 6, "quote": "Widget"}],
+                "evidence": [{"quote": "Widget"}],
             }
         ],
         "claims": [
@@ -26,7 +26,7 @@ def valid_result():
                 "value": "ARM64",
                 "scope": {"version": "2.1", "platform": "Linux", "availability": "stable"},
                 "confidence": 0.9,
-                "evidence": [{"start": 7, "end": 30, "quote": "supports ARM64 on Linux"}],
+                "evidence": [{"quote": "supports ARM64 on Linux"}],
             }
         ],
     }
@@ -37,14 +37,23 @@ def test_extraction_result_accepts_structured_claim_with_scope_and_evidence():
 
     assert result.schema_id == EXTRACTION_SCHEMA_ID
     assert result.claims[0].scope.platform == "Linux"
-    assert result.claims[0].evidence[0].start == 7
+
+
+def test_evidence_offsets_are_resolved_from_verbatim_quotes():
+    result = ExtractionResult.model_validate(valid_result())
+
+    output = resolve_evidence(result, "Widget supports ARM64 on Linux")
+
+    assert output["claims"][0]["evidence"] == [
+        {"start": 7, "end": 30, "quote": "supports ARM64 on Linux"}
+    ]
 
 
 def test_evidence_quotes_must_match_supplied_source_text():
     result = ExtractionResult.model_validate(valid_result())
 
     with pytest.raises(ValueError, match="does not match"):
-        validate_evidence_spans(result, "Widget supports ARM64 on Windows")
+        resolve_evidence(result, "Widget supports ARM64 on Windows")
 
 
 @pytest.mark.parametrize(
@@ -55,7 +64,7 @@ def test_evidence_quotes_must_match_supplied_source_text():
         lambda data: data["claims"][0].update(unreviewed_field="bad"),
         lambda data: data["entities"][0].update(name=123),
         lambda data: data["claims"][0].update(entity_ref="missing"),
-        lambda data: data["claims"][0]["evidence"][0].update(end=2),
+        lambda data: data["claims"][0]["evidence"][0].update(start=7),
     ],
 )
 def test_extraction_result_rejects_malformed_or_unscoped_output(mutate):

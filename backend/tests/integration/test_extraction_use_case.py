@@ -33,7 +33,7 @@ def test_extraction_pipeline_validates_output_and_records_analysis_provenance():
                     "ref": "widget",
                     "name": "Widget",
                     "entity_type": "software",
-                    "evidence": [{"start": 0, "end": 6, "quote": "Widget"}],
+                    "evidence": [{"quote": "Widget"}],
                 }
             ],
             "claims": [
@@ -43,7 +43,7 @@ def test_extraction_pipeline_validates_output_and_records_analysis_provenance():
                     "value": "ARM",
                     "scope": {"version": None, "platform": None, "availability": None},
                     "confidence": 0.75,
-                    "evidence": [{"start": 0, "end": 20, "quote": "Widget supports ARM."}],
+                    "evidence": [{"quote": "Widget supports ARM."}],
                 }
             ],
         }
@@ -58,6 +58,9 @@ def test_extraction_pipeline_validates_output_and_records_analysis_provenance():
     assert run.schema_version == EXTRACTION_SCHEMA_ID
     assert "Widget release" in adapter.prompt
     assert result.claims[0].scope.availability is None
+    assert run.output["claims"][0]["evidence"] == [
+        {"start": 0, "end": 20, "quote": "Widget supports ARM."}
+    ]
 
 
 def test_extraction_pipeline_marks_run_failed_when_output_is_invalid():
@@ -92,7 +95,7 @@ def test_extraction_pipeline_rejects_evidence_not_found_in_article():
                     "ref": "widget",
                     "name": "Widget",
                     "entity_type": "software",
-                    "evidence": [{"start": 0, "end": 6, "quote": "Widget"}],
+                    "evidence": [{"quote": "Widget"}],
                 }
             ],
             "claims": [
@@ -103,7 +106,7 @@ def test_extraction_pipeline_rejects_evidence_not_found_in_article():
                     "scope": {"version": None, "platform": None, "availability": "stable"},
                     "confidence": 0.7,
                     "evidence": [
-                        {"start": 10, "end": 16, "quote": "closed"}
+                        {"quote": "closed"}
                     ],
                 }
             ],

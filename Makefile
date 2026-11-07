@@ -44,6 +44,10 @@ install-frontend: ## Install frontend npm dependencies
 
 # --- Development Servers ---
 
+.PHONY: dev
+dev: ## Run backend, worker and frontend together (loads .env; Ctrl-C stops all)
+	@$(NVM_INIT) && ./scripts/dev.sh
+
 .PHONY: dev-backend
 dev-backend: ## Run Django development server (default port: 8000)
 	cd $(BACKEND_DIR) && DJANGO_DEBUG=$(DJANGO_DEBUG) uv run python manage.py runserver $(BACKEND_PORT)

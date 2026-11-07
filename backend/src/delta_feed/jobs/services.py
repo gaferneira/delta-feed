@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
@@ -10,8 +11,11 @@ MAX_ATTEMPTS = 5
 BASE_BACKOFF_SECONDS = 30
 MAX_BACKOFF_SECONDS = 3600
 LEASE_SECONDS = 60
-HANDLERS = {"content.poll_rss": "delta_feed.content.rss:poll_rss_source"}
-JOB_TYPES = {"rss.poll": "content.poll_rss"}
+HANDLERS = {
+    "content.poll_rss": "delta_feed.content.rss:poll_rss_source",
+    "analysis.extract_article": "delta_feed.analysis.use_cases:extract_article_job",
+}
+JOB_TYPES = {"rss.poll": "content.poll_rss", "analysis.extract": "analysis.extract_article"}
 
 
 def enqueue_job(*, job_type: str, payload: dict, handler_name: str) -> Job:
@@ -25,6 +29,14 @@ def enqueue_job(*, job_type: str, payload: dict, handler_name: str) -> Job:
         handler_name=handler_name,
         run_after=timezone.now(),
     )
+
+
+def _lease_seconds(job_type: str) -> int:
+    # Model calls can outlast the default lease; a lease that expires mid-call would
+    # let a second worker run the same extraction.
+    if job_type == "analysis.extract":
+        return settings.ANALYSIS_TIMEOUT_SECONDS + LEASE_SECONDS
+    return LEASE_SECONDS
 
 
 def _get_handler(handler_name):
@@ -67,7 +79,7 @@ def claim_job(*, job_id=None) -> Job | None:
         token = new_lease_token()
         changed = Job.objects.filter(pk=job.pk).filter(eligible).update(
             status=Job.Status.RUNNING,
-            lease_expires_at=now + timedelta(seconds=LEASE_SECONDS),
+            lease_expires_at=now + timedelta(seconds=_lease_seconds(job.type)),
             lease_token=token,
             attempt_count=F("attempt_count") + 1,
             updated_at=now,

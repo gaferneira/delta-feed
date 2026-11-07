@@ -11,6 +11,13 @@ class AnalysisRun(models.Model):
         COMPLETED = "completed", "Completed"
         FAILED = "failed", "Failed"
 
+    class FailureReason(models.TextChoices):
+        NONE = "", "None"
+        # The model answered, but its output failed validation; not retried automatically.
+        INVALID_OUTPUT = "invalid_output", "Invalid output"
+        # The provider could not be reached; the article stays unanalysed and is retried.
+        INFERENCE_UNAVAILABLE = "inference_unavailable", "Inference unavailable"
+
     source_article = models.ForeignKey(
         "content.Article",
         on_delete=models.CASCADE,
@@ -34,6 +41,12 @@ class AnalysisRun(models.Model):
         max_length=100,
         default=DEFAULT_EXTRACTION_SCHEMA_ID,
     )
+    failure_reason = models.CharField(
+        max_length=40, choices=FailureReason.choices, default=FailureReason.NONE, blank=True
+    )
+    # Validated extraction proposal with server-resolved evidence offsets. Model output
+    # is data: it is never executed and does not change knowledge until accepted.
+    output = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-started_at", "-id"]  # noqa: RUF012

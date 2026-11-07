@@ -11,23 +11,17 @@ class StrictContract(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
-class EvidenceSpan(StrictContract):
-    start: int = Field(ge=0)
-    end: int = Field(gt=0)
-    quote: str = Field(min_length=1)
+class EvidenceQuote(StrictContract):
+    """A passage copied verbatim from the article; offsets are resolved server-side."""
 
-    @model_validator(mode="after")
-    def end_follows_start(self):
-        if self.end <= self.start:
-            raise ValueError("evidence end must be greater than start")
-        return self
+    quote: str = Field(min_length=1)
 
 
 class EntityMention(StrictContract):
     ref: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=250)
     entity_type: str = Field(min_length=1, max_length=80)
-    evidence: list[EvidenceSpan] = Field(min_length=1)
+    evidence: list[EvidenceQuote] = Field(min_length=1)
 
 
 class ClaimScope(StrictContract):
@@ -42,7 +36,7 @@ class ExtractedClaim(StrictContract):
     value: str = Field(min_length=1)
     scope: ClaimScope
     confidence: float = Field(ge=0.0, le=1.0)
-    evidence: list[EvidenceSpan] = Field(min_length=1)
+    evidence: list[EvidenceQuote] = Field(min_length=1)
 
 
 class ExtractionResult(StrictContract):
@@ -61,11 +55,20 @@ class ExtractionResult(StrictContract):
         return self
 
 
-def validate_evidence_spans(result: ExtractionResult, source_text: str) -> ExtractionResult:
-    """Reject evidence whose offsets or exact quote do not match source text."""
-    spans = [span for entity in result.entities for span in entity.evidence]
-    spans.extend(span for claim in result.claims for span in claim.evidence)
-    for span in spans:
-        if span.end > len(source_text) or source_text[span.start : span.end] != span.quote:
-            raise ValueError("evidence span does not match the supplied source text")
-    return result
+def resolve_evidence(result: ExtractionResult, source_text: str) -> dict:
+    """Return the result as JSON data with each quote's offsets into source_text.
+
+    Models count characters unreliably, so they supply exact quotes only and the
+    offsets are computed here. A quote that is not verbatim in the text is rejected.
+    """
+    data = result.model_dump(mode="json")
+    for item in [*data["entities"], *data["claims"]]:
+        spans = []
+        for evidence in item["evidence"]:
+            quote = evidence["quote"]
+            start = source_text.find(quote)
+            if start < 0:
+                raise ValueError("evidence quote does not match the supplied source text")
+            spans.append({"start": start, "end": start + len(quote), "quote": quote})
+        item["evidence"] = spans
+    return data

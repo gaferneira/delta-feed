@@ -149,6 +149,14 @@ RSS_POLL_INTERVAL_MINUTES = _env_int("RSS_POLL_INTERVAL_MINUTES", 30)
 TODAY_BUDGET = _env_int("TODAY_BUDGET", 12)
 TODAY_PER_SOURCE_CAP = _env_int("TODAY_PER_SOURCE_CAP", 3)
 
+# Model work (ADR 0006, Phase B). Only the named provider is used, never a fallback.
+# "ollama" needs OLLAMA_HOST and OLLAMA_MODEL; "openai_compatible" (e.g. LM Studio) needs
+# OPENAI_COMPAT_BASE_URL and OPENAI_COMPAT_MODEL, plus OPENAI_COMPAT_API_KEY if required.
+ANALYSIS_PROVIDER = os.environ.get("ANALYSIS_PROVIDER", "ollama").strip()
+ANALYSIS_DAILY_BUDGET = _env_int("ANALYSIS_DAILY_BUDGET", 50)
+ANALYSIS_TIMEOUT_SECONDS = _env_int("ANALYSIS_TIMEOUT_SECONDS", 300)
+ANALYSIS_MAX_BODY_CHARS = _env_int("ANALYSIS_MAX_BODY_CHARS", 20000)
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

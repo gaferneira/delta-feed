@@ -15,6 +15,7 @@ export interface FeedItem {
   is_backfill: boolean;
   published_at: string | null;
   discovered_at: string;
+  analysis_status: 'unanalysed' | 'analysed' | 'failed';
 }
 
 export interface FeedPage {

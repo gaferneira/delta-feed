@@ -103,6 +103,15 @@ Phase A as implemented:
 - **Today:** current articles *discovered* (created in the database, not published) in the last 24 hours. The budget is filled in rounds so each source contributes its newest article before any contributes a second, with no source above the cap; the selection is shown newest first. Manual submissions never count against a source cap. `GET /api/reader/feed?view=today` returns the budget and `more_count`; `more=true` returns the rest of the day. The reader renders it behind a "Show N more from today" link, so nothing is hidden and All still lists everything.
 - **Import status:** `GET /api/content/import-status` reports sources fetched, queued polls and whether a worker handled a job in the last five minutes; the reader uses it for the first-run, worker-stopped and caught-up messages.
 
+Phase B as implemented (not yet run against a real model):
+
+- **Provider port:** `analysis.providers` holds a `LanguageModel` protocol and a registry selected by `ANALYSIS_PROVIDER`: `ollama` (`/api/generate` with the output schema as `format`) and `openai_compatible` (`/chat/completions` with a strict `json_schema` response format, for LM Studio and similar servers). Only the configured provider is used, never a fallback, and both run at temperature 0.
+- **Contract:** the model returns evidence as exact quotes only; the server resolves their offsets, and a quote that is not verbatim in the article fails the run. Bodies longer than `ANALYSIS_MAX_BODY_CHARS` are analysed as a prefix and the output records `truncated`.
+- **Output:** the validated proposal, with resolved evidence offsets, is stored on `AnalysisRun.output`. It is not turned into knowledge claims yet.
+- **Scheduling:** the worker calls `schedule_due_analysis` about once a minute. It queues nothing while the provider is unconfigured or an extraction job is pending or leased, and at most 5 articles per batch within `ANALYSIS_DAILY_BUDGET`. Current articles go first, newest discovered first; quiet backfill goes last and only seeds the baseline. An extraction job's lease is the model timeout plus a minute.
+- **Failures:** a provider outage (`inference_unavailable`) retries with backoff, does not spend the budget and leaves the article unanalysed; invalid model output (`invalid_output`) settles the article as failed and is not retried automatically.
+- **State:** the feed API returns `analysis_status` (`unanalysed`, `analysed`, `failed`) for the article's current revision.
+
 ### ADR 0007: Preference signals and transparent ranking
 
 Plan for [ADR 0007](decisions/0007-preference-signals-and-transparent-ranking.md). Each slice is usable on its own.

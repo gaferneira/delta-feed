@@ -10,6 +10,18 @@
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Load local settings from .env (gitignored; see .env.example). Plain KEY=value lines
+# only, nothing is executed; a variable already set in your shell wins.
+if [ -f "$ROOT_DIR/.env" ]; then
+  while IFS='=' read -r key value || [ -n "$key" ]; do
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    value="${value%$'\r'}"
+    value="${value%\"}"; value="${value#\"}"
+    [ -z "${!key+x}" ] && export "$key=$value"
+  done < "$ROOT_DIR/.env"
+fi
+
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-4321}"
 export DJANGO_DEBUG="${DJANGO_DEBUG:-true}"
