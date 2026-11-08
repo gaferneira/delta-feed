@@ -19,16 +19,17 @@ One word per idea. Use these terms consistently in docs, code and UI.
 - **Alias:** another name for an entity. Helps find candidates; never proves identity.
 - **Claim:** one atomic statement a source makes about an entity, with scope (version, platform, availability), times and evidence. A claim records what a source said, not that it is true.
 - **Evidence:** the source passage that supports a claim.
-- **Baseline:** the accepted entities and claims that new content is compared against.
+- **Baseline:** the accepted entities and claims that new content is compared against. It has three sources: entities from the user's guides (familiar at entity level only, since a guide entry does not say which claims the user knows), claims extracted from the quiet backfill, and claims from articles already analysed. A claim joins the baseline once it is accepted as validated knowledge. An entity with no baseline claims is a *first sighting*, not "new".
 - **Delta:** how a new claim relates to the baseline: duplicate, novel, refinement or contradiction.
 - **Topic:** a label for an area of interest, many-to-many with entities, articles and guides. Not a separate identity registry.
 
 ## Reader
 
 - **Discovery:** an entity that is new to you.
-- **Event:** grouped coverage of one discovery or change, possibly from several sources.
-- **Card:** how an event appears in the reader: what is new, why it is shown, and its sources.
-- **Following:** entities you explicitly want updates about (your watchlist).
+- **First sighting:** an entity with no baseline claims yet, so all its claims count as new. Not the same as a discovery: an entity from your guides can be a first sighting without being new to you.
+- **Delta card:** one card per article on the Delta page, built only from that article's non-duplicate claims: what is new, its evidence, and its source ([ADR 0008](decisions/0008-delta-page-and-feed.md)).
+- **Event:** grouped coverage of one change across several articles. Deferred: the reader shows per-article cards ([ADR 0008](decisions/0008-delta-page-and-feed.md)).
+- **Watchlist:** entities you explicitly want updates about. A ranking signal for the Delta page ([ADR 0007](decisions/0007-preference-signals-and-transparent-ranking.md)), not a page of its own.
 - **Uncertain:** a decision the system could not make safely. It stays visible and reviewable.
 - **Shadow mode:** analysis runs and proposes what to publish or suppress, but nothing is hidden automatically; proposals are labelled and inspectable.
 - **Suppression:** hiding an item from reader views because it is not new. Never deletes anything; off by default.

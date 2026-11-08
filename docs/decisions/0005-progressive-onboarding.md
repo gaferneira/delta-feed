@@ -24,10 +24,10 @@ Rules:
 - **One reader in the UI, per-user data underneath.** Every piece of personal state (read, save, guides, familiarity, delivery levels) is keyed by user; sources, articles and entities stay a shared registry. This keeps a second household reader possible without migrations. It is not multi-tenancy: no user management, invites or roles until a real need exists.
 - **Familiarity is per user and separate from the registry.** It never edits, merges or splits an `Entity`. It stays independent of relevance, read state and following, as [product.md](../product.md#independent-concepts) requires.
 - **Levels:** `heard` or `use`, with no record meaning unknown. Delivery priority is a separate axis (see below).
-- **Familiarity is entity-level, not claim-level.** Knowing an entity removes it from Discoveries, but meaningful updates about it (claims, releases, security, deprecations) stay eligible.
+- **Familiarity is entity-level, not claim-level.** Knowing an entity stops it appearing as a first sighting on the Delta page, but meaningful updates about it (claims, releases, security, deprecations) stay eligible.
 - **Append-only, with provenance.** Every change records its origin (`setup_triage`, `card_feedback`, `roundup_bulk`, `import`, `guide`, `nudge`) and can be undone. Nothing is inferred silently.
 - **Not retroactive.** Marking something familiar affects future classification; it does not hide content already delivered.
-- **Calibration is visible.** Until the baseline is established, Discoveries says it is still learning what the reader knows. The exit criterion is set from trial data.
+- **Calibration is visible.** Until the baseline is ready, Feed stays the landing page and Delta says it is still learning what the reader knows ([ADR 0008](0008-delta-page-and-feed.md)). The exit criterion is set from trial data.
 - **Starter packs are reviewed data:** versioned TOML (read with the standard library, no new dependency) with a topic plus suggested feeds, contributed by pull request and validated through the bounded fetcher. They contain no entity lists, because triage uses the reader's own backfill instead.
 
 ### Delivery levels
@@ -38,9 +38,9 @@ Priority is set per **topic**; an **entity** inherits its topics' level unless t
 |---|---|---|
 | `notify` | Shown, ordered first | For significant events only |
 | `show` (default) | Shown | None |
-| `mute` | Not shown in Today, Discoveries or Following; still listed in All Content with the reason | None |
+| `mute` | Not shown on the Delta page; still listed in Feed with the reason | None |
 
-- **Ordering:** within each topic group, `notify` items come before `show` items, then the usual time order applies. This is an explicit preference, not learned ranking, and it never hides `show` items.
+- **Ordering:** on the Delta page, `notify` items come before `show` items, then the usual time order applies. This is an explicit preference, not learned ranking, and it never hides `show` items.
 - **Significant events** are releases, status changes (for example beta to GA), security advisories and deprecations. Routine mentions of a `notify` entity appear in the feed without a notification.
 - **Mute is not suppression.** Muted items stay inspectable. Security advisories about an entity the reader `use`s still surface even when muted.
 - **Notifications are optional.** `notify` affects ordering from day one; sending notifications requires a configured integration.

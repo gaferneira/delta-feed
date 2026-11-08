@@ -6,12 +6,11 @@ A useful daily reading destination, not a processing dashboard or a list of gene
 
 ## Reading experience
 
-- **Today:** relevant discoveries and meaningful events grouped by configured topic.
-- **Discoveries:** previously unfamiliar entities extracted even from familiar roundups.
-- **Following:** scoped feature changes and events for watched entities.
+- **Delta:** one card per article that has at least one new, changed or conflicting claim, built only from those claims, so a roundup shows only its unfamiliar items. It becomes the landing page once the baseline is ready ([ADR 0008](decisions/0008-delta-page-and-feed.md)); until then Feed is the landing page and a banner offers the switch.
+- **Feed:** every article, newest first, including analysed, nothing-new, unanalysed and failed ones. Nothing Delta leaves out is hidden here.
 - **Saved:** reading queue.
 - **Guides:** your own living articles (e.g. recommended skills every project should have, Raspberry Pi home automation) as structured entries with personal notes, evidence and reviewed revision history. Manual first; model-proposed updates arrive with analysis.
-- **All Content:** originals, suppressions with reasons, uncertain items, and processing failures.
+- Uncertain items, suppressions with reasons and processing failures stay inspectable in Feed.
 
 Cards explain what is new, why they appear, supporting sources, and publication versus discovery time. Provide read/save, already-knew, and wrong-match actions.
 
@@ -27,7 +26,7 @@ Topics are many-to-many labels on articles/entities/events, not separate identit
 
 - [ ] Authenticated article submission persists a revision and returns an inspectable job/status.
 - [ ] A responsive reader displays original/source-linked cards and persists read/save state.
-- [ ] Topics/sources are explicitly administered; quiet backfill preserves unread state and does not flood Today.
+- [ ] Topics/sources are explicitly administered; quiet backfill preserves unread state and does not flood the Delta page.
 - [ ] Repeated submissions are idempotent; changed content is revisioned.
 - [ ] Roundups yield known/new/uncertain item decisions supported by evidence.
 - [ ] Entity timelines retain duplicate, novel, refinement, contradiction, and availability distinctions without overwriting history.
@@ -40,7 +39,7 @@ Topics are many-to-many labels on articles/entities/events, not separate identit
 ## MVP acceptance: guides
 
 - [ ] Guides support manual structured entries, preserved personal prose and revision history, before any AI.
-- [ ] With confirmation, guide entries mark entities as familiar and can seed the Following watchlist.
+- [ ] With confirmation, guide entries mark entities as familiar and can seed the watchlist.
 - [ ] Model-proposed add/update/warning/retire changes are evidence-backed and require review; new does not mean recommended.
 - [ ] Approval rejects stale proposals; corrections propose repairs rather than silently rewriting published advice.
 

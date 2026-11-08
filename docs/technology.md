@@ -9,7 +9,7 @@ Status: selections are decided but not implemented or compatibility-tested. See 
 | Interactive UI | Small scripts/islands; React optional | Do not hydrate the entire reader by default. No HTMX layer. Offline queued actions are not an MVP promise. |
 | API | Django Ninja | Typed Pydantic-based input/output contracts and OpenAPI, integrated with Django. Authz, object ownership and failure semantics still our responsibility. |
 | Backend | Python + Django | ORM, migrations, sessions/auth and admin. Ninja endpoints and worker invoke backend services; selective framework-independent core/application ports with concrete adapter boundaries are defined in the target layout; detailed DTOs and schemas are implemented per slice. |
-| Database | Dedicated PostgreSQL + pgvector | Relational and vector state together; no SQLite/Qdrant synchronization requirement. |
+| Database | Dedicated PostgreSQL; pgvector deferred | One database for all state. PostgreSQL is required for deployment (row locks); SQLite is for local development and tests only. pgvector is added when embeddings are used ([ADR 0010](decisions/0010-postgres-required-pgvector-deferred.md)). |
 | Worker | Django command + durable DB jobs | Same backend image, separate process; own modest leasing/retry semantics initially. |
 | API types | OpenAPI-generated TypeScript | openapi-typescript candidate; lock tool and verify regeneration in CI. Separate generation from small handwritten fetch client. Types do not provide runtime validation. |
 | Source adapters | feedparser, HTTPX, trafilatura candidates | RSS, bounded fetch/extraction; not arbitrary JS/paywall coverage. |

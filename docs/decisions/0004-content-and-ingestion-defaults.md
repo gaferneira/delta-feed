@@ -19,7 +19,7 @@ Use separate atomic acceptance boundaries for ingestion, knowledge/news and guid
 
 ## Consequences
 
-Adds guide proposals/revisions, observation ordering, correction audit and independent state axes. Discovery and delta analysis start in shadow mode and also produce reviewable guide proposals; the staging is in the [roadmap](../roadmap.md). Guide entries are an explicit familiarity signal for novelty and can seed the Following watchlist. Guide review never blocks news acceptance. No arbitrary recommendation auto-approval or exact accuracy promises.
+Adds guide proposals/revisions, observation ordering, correction audit and independent state axes. Discovery and delta analysis start in shadow mode and also produce reviewable guide proposals; the staging is in the [roadmap](../roadmap.md). Guide entries are an explicit familiarity signal for novelty and can seed the watchlist. Guide review never blocks news acceptance. No arbitrary recommendation auto-approval or exact accuracy promises.
 
 ## Deferred
 

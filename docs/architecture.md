@@ -1,6 +1,6 @@
 # Architecture
 
-Status: intended design, not implemented API or schema.
+Status: intended design. Implementation status is tracked only in the [README](../README.md#project-status).
 
 Terms follow the [glossary](glossary.md). See [repository structure](repository-structure.md) for the target package layout and module ownership, and [development workflow](development-workflow.md) for implementation/review gates.
 
@@ -10,7 +10,7 @@ Terms follow the [glossary](glossary.md). See [repository structure](repository-
 flowchart TD
   RSS[Built-in RSS / manual submission] --> IN[Authenticated ingestion]
   N8N[Optional n8n / FreshRSS adapter] --> IN
-  IN --> DB[(Postgres + pgvector)]
+  IN --> DB[(PostgreSQL)]
   DB --> W[Background worker]
   W --> L[Configured language-model and embedding adapters]
   L --> V[Schema and evidence validation]
@@ -29,7 +29,7 @@ One product repository: Astro SSR frontend and a Django backend exposing a Djang
 - Source, ingestion receipt, article, and immutable article revision.
 - Entity, scoped identity key, alias, and topic membership.
 - Claim, source evidence, and relationships such as refines/contradicts.
-- Event (grouped coverage of one discovery or change) and its reader card, linked to supporting records.
+- Delta card per article, built from its non-duplicate claims and linked to their evidence. Event grouping across articles is deferred ([ADR 0008](decisions/0008-delta-page-and-feed.md)).
 - Reading state and user feedback, separate from global entity existence.
 - Guide definitions, contextual entries, protected personal prose, proposed diffs and published revisions.
 - Observation ordering/backfill intent and explicit correction audit records.
@@ -68,10 +68,9 @@ Fictional names, not retrieved content. It follows one article through the pipel
 3. **Identity:** 8 entities match known ones through strong identity keys (repository/package identifiers). **SenseLite** has no strong key; vector search finds PiSense as a candidate, and adjudication cannot tell whether it is a fork or a rename, so it stays **uncertain**. **GardenPi** has no plausible candidate and becomes a **new** entity.
 4. **Claim comparison:** HubCore "Zigbee GA in 3.0" against the baseline "Zigbee beta in 2.8" is a **refinement** with an availability change (beta → GA). The other known entities' claims are **duplicates**.
 5. **Reader (shadow mode):**
-   - Following: card "HubCore 3.0: Zigbee support now generally available (beta since 2.8)", linked to the roundup passage.
-   - Discoveries: card for GardenPi, saying why it is shown.
-   - All Content: SenseLite listed as uncertain, showing the PiSense candidate with review actions.
-   - The 7 duplicate items get no cards. They are labelled "proposed: already known", not hidden, and the roundup stays readable.
+   - Delta: one card for the roundup with two bullets: "HubCore 3.0: Zigbee support now generally available (beta since 2.8)" (refinement) and "GardenPi" (first sighting, saying why it is shown), each linked to its roundup passage. SenseLite appears as an "unsure" bullet.
+   - Feed: the roundup stays readable, and SenseLite shows the PiSense candidate with review actions.
+   - The 7 duplicate items get no bullets. They are labelled "proposed: already known", not hidden.
 6. **Guide proposals** (separate approval path): "update HubCore entry: remove the 'Zigbee is beta' caveat", with the evidence passage. GardenPi yields an add-entry proposal only if it matches the guide's eligibility criteria; new does not mean recommended. Approving creates a new guide revision; your own introduction and notes are untouched.
 
 ## Provider interfaces

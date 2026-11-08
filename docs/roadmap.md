@@ -31,7 +31,7 @@ Detailed use-case ports and persistence schemas are designed within this slice. 
 
 ## Milestone 2: Manual guides, no AI
 
-Guide definitions (purpose/audience, topic links, eligibility criteria, ordered sections), structured entries linked to entities, preserved personal prose, manual editing and revision history. Render the article-like view from structured entries; preserve imported Markdown as-is. With your confirmation, guide entries mark their entities as familiar and can seed the Following watchlist. Test expected-revision checks on concurrent edits and revision history persistence.
+Guide definitions (purpose/audience, topic links, eligibility criteria, ordered sections), structured entries linked to entities, preserved personal prose, manual editing and revision history. Render the article-like view from structured entries; preserve imported Markdown as-is. With your confirmation, guide entries mark their entities as familiar and can seed the watchlist. Test expected-revision checks on concurrent edits and revision history persistence.
 
 ## Milestone 3: Safe ingestion and jobs
 
@@ -138,10 +138,11 @@ Plan for [ADR 0007](decisions/0007-preference-signals-and-transparent-ranking.md
 
 Plan for [ADR 0008](decisions/0008-delta-page-and-feed.md).
 
-1. **Pages without AI:** Feed as the chronological list of every article (absorbing All and Earlier); Delta as the landing page, showing the waiting-for-analysis state; shared read/save.
+1. **Pages without AI:** Feed as the chronological list of every article (absorbing All and Earlier), and the landing page until the baseline is ready; Delta showing the waiting-for-analysis state; shared read/save. Baseline readiness is a measurable check (for example the share of backfilled articles analysed, plus some guide entities); the threshold is set from trial data. When it passes, a banner offers the switch to Delta.
 2. **Extraction in the worker** (ADR 0006 Phase B), including the lowest-priority backfill extraction that seeds the baseline.
-3. **Claim comparison and delta cards:** non-duplicate claims per article, generated headline and bullets referencing claims, fallback text.
+3. **Claim comparison and delta cards:** non-duplicate claims per article, generated headline and bullets referencing claims, fallback text. Delta is ordered newest first, without a budget.
 4. **Tuning**, driven by trial data:
+   - Ranking on Delta under the ADR 0006 budget and ADR 0007 preferences, replacing the old Today budget.
    - Feed badges per article ("3 new", "nothing new", "unanalysed") linking to the Delta card.
    - "Also mentioned in" on a delta when a later article repeats the claim, as metadata rather than a new card.
    - Analyse a source's official announcements ahead of secondary coverage within a batch, so the primary source tends to carry the delta.

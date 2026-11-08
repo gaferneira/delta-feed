@@ -19,10 +19,10 @@ There is also a cold start. With an empty baseline, every claim is novel, so the
 
 | Page | Shows | Order | Model |
 |---|---|---|---|
-| **Delta** (default after login) | Articles that have at least one non-duplicate claim, as delta cards | Ranked under the [ADR 0006](0006-attention-budget-and-analysis-funnel.md) budget and [ADR 0007](0007-preference-signals-and-transparent-ranking.md) preferences | Yes |
+| **Delta** (default after login) | Articles that have at least one non-duplicate claim, as delta cards | Newest first at first; ranking under the [ADR 0006](0006-attention-budget-and-analysis-funnel.md) budget and [ADR 0007](0007-preference-signals-and-transparent-ranking.md) preferences is added during tuning | Yes |
 | **Feed** | Every current article: analysed, nothing new, unanalysed, failed | Newest first, no ranking, no budget | No |
 
-- Delta replaces Today as the landing page. Feed absorbs the current All and Earlier lists.
+- Delta replaces Today as the landing page once the baseline is ready; until then Feed is the landing page. When the readiness check passes, the reader shows a banner ("Delta is ready, switch?"); the page never changes by itself. Either page can be chosen at any time from the navigation. Feed absorbs the current All and Earlier lists.
 - Read and save state is per article and shared by both pages.
 - Feed is the trust valve: nothing the Delta page leaves out is hidden, consistent with shadow mode in the [content policy](../content-policy.md).
 - Delta never fills itself with unanalysed articles. While analysis is pending or the model is unavailable, it says how many articles are waiting and links to Feed.

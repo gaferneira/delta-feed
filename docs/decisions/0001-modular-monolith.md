@@ -1,6 +1,6 @@
 # ADR 0001: Cohesive standalone modular monolith
 
-**Status:** Accepted.
+**Status:** Accepted. Database choice amended by [ADR 0010](0010-postgres-required-pgvector-deferred.md) (pgvector deferred).
 
 ## Context
 

@@ -34,7 +34,7 @@ The first poll stores a **backfill cutoff on the source**, and later polls never
 Today here means the landing page, which [ADR 0008](0008-delta-page-and-feed.md) turns into the Delta page.
 
 - Today is based on when an article was discovered, not when it was published.
-- Today shows a ranked budget of cards (default 12, configurable). The rest of the day's articles stay one click away ("More from today") and in All Content. Nothing is hidden by the budget.
+- Today shows a ranked budget of cards (default 12, configurable). The rest of the day's articles stay one click away ("More from today") and in Feed. Nothing is hidden by the budget.
 - **Source diversity:** a single source fills at most a fixed share of the budget (default 3 cards), so one prolific publisher cannot crowd out the rest.
 - **Ranking inputs:** recency and source diversity, preferences ([ADR 0007](0007-preference-signals-and-transparent-ranking.md)), delivery level ([ADR 0005](0005-progressive-onboarding.md#delivery-levels)), novelty and event significance.
 - Cards are per article, as decided in [ADR 0008](0008-delta-page-and-feed.md); grouping several articles about one event is deferred there.

@@ -1,12 +1,12 @@
 # Content, publication and living-guide policy
 
-**Status:** Defaults accepted; policy/schema implementation pending. See ADR 0004 and the ingestion contract. No numerical quality thresholds or retention duration have been invented.
+**Status:** Defaults accepted; implementation status is tracked in the [README](../README.md#project-status). See ADR 0004 and the ingestion contract. No numerical quality thresholds or retention duration have been invented.
 
 ## Two outputs, shared knowledge
 
 News answers “what happened or became available?” Living guides answer “what should I consider for this purpose today?” Both use shared entities/claims but have separate publication and approval paths. Manual guides follow the first reader slice; model-proposed guide changes arrive with discovery shadow mode (see the [roadmap](roadmap.md)). News processing never waits for guide approval.
 
-Topics organize relevance; sources provide observations; source articles retain provenance; entities represent tools/libraries/projects or reusable practices/capabilities; scoped claims describe what a source says. Events group corroborating coverage of a discovery/change. Guides curate contextual recommendations; a globally known entity can be newly useful in a guide.
+Topics organize relevance; sources provide observations; source articles retain provenance; entities represent tools/libraries/projects or reusable practices/capabilities; scoped claims describe what a source says. Events group corroborating coverage of a discovery/change; they are deferred, and the reader shows per-article delta cards ([ADR 0008](decisions/0008-delta-page-and-feed.md)). Guides curate contextual recommendations; a globally known entity can be newly useful in a guide.
 
 One identity across topics/guides. Names of practices and concrete skill implementations are not automatically the same entity. Relevance, registry-known, delivered and personally read/acknowledged are distinct. Source evidence supports attribution, not objective truth certification.
 
@@ -15,14 +15,14 @@ One identity across topics/guides. Names of practices and concrete skill impleme
 - Shadow mode initially: originals readable, proposed news events/suppression inspectable and labeled, no model-proposed automatic hiding. Accept validated knowledge separately from approving/enabling visible publication; the transition is explicit, not implied by completed analysis.
 - Future automatic suppression requires user-reviewed real evaluation, explicit enablement and rollback. Suppression never deletes source observations.
 - Differentiate occurred_at/source publication time from discovered_at/ingestion time. Old-but-new-to-you is a discovery, not breaking news. Important familiar security/deprecation/availability events remain eligible.
-- Guides require review for every model-proposed edit in the initial guide release. Valid news processing does not wait for editorial approval.
+- Guides require review for every model-proposed edit in the initial guide release; expiry and auto-accept are deferred ([ADR 0009](decisions/0009-guide-proposal-resolution-policies.md)). Valid news processing does not wait for editorial approval.
 - Model timeout/malformed output/incomplete index preserves pending/uncertain status, never fabricates novelty or redundancy. No silent cloud fallback.
 
 ## Living guides
 
 A guide has purpose/audience, topic links, eligibility/exclusion criteria, ordered sections, curated entries and published revision history. An entry links an entity/concept and contains contextual suitability, requirements, caveats, evidence and review/freshness metadata. Personal introduction/annotations are stored separately from generated proposals and never overwritten by regeneration.
 
-Guide entries are an explicit signal of familiarity and interest. With your confirmation, entities in a guide count as known for discovery and can be added to the Following watchlist. This is personal familiarity, not a registry correction.
+Guide entries are an explicit signal of familiarity and interest. With your confirmation, entities in a guide count as known for discovery and can be added to the watchlist. This is personal familiarity, not a registry correction.
 
 Render the article-like view from structured entries; no independently regenerated prose copy that can drift. Imported custom Markdown remains preserved; extraction into structured entries is a reviewed proposal, not an automatic replacement.
 
