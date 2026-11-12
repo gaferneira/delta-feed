@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Literal
 
 from django.conf import settings
-from django.db.models import Exists, F, OuterRef, Subquery
+from django.db.models import Count, Exists, F, OuterRef, Subquery
 from django.db.models.functions import Coalesce, Substr
 from django.http import HttpRequest
 from django.utils import timezone
@@ -13,7 +13,7 @@ from delta_feed.analysis.models import AnalysisRun
 from delta_feed.analysis.status import analysis_status, current_run
 from delta_feed.application.mention_resolution import pending_mention_counts
 from delta_feed.content.models import Article
-from delta_feed.knowledge.models import Claim
+from delta_feed.knowledge.models import Claim, Topic
 from delta_feed.reader.models import ReadState, SaveState
 from delta_feed.reader.today import select_today
 
@@ -22,6 +22,7 @@ router = Router(tags=["reader"])
 DEFAULT_PAGE_SIZE = 25
 MAX_PAGE_SIZE = 100
 EXCERPT_LENGTH = 300
+MAX_ENTITY_CHIPS = 3
 TODAY_WINDOW = timedelta(hours=24)
 
 
@@ -57,6 +58,11 @@ def mark_saved(request: HttpRequest, article_id: int, payload: SaveInput):
     return {"article_id": article_id, "is_saved": state.is_saved}
 
 
+class EntityRef(Schema):
+    name: str
+    type: str
+
+
 class FeedItem(Schema):
     article_id: int
     url: str
@@ -71,6 +77,10 @@ class FeedItem(Schema):
     discovered_at: datetime
     # Extraction state of the current revision; unanalysed is shown, never hidden.
     analysis_status: Literal["unanalysed", "analysed", "failed"]
+    # Titles of the topics the article's source belongs to; empty for manual submissions.
+    topics: list[str]
+    # The most-mentioned known entities of the current revision, at most MAX_ENTITY_CHIPS.
+    entities: list[EntityRef]
 
 
 class FeedPage(Schema):
@@ -81,6 +91,43 @@ class FeedPage(Schema):
     has_more: bool
     # Today only: articles from the last 24 hours beyond the budget (still reachable).
     more_count: int = 0
+
+
+def _topics_by_article(article_ids: list[int]) -> dict[int, list[str]]:
+    """Topic titles per article, inherited from the article's source."""
+    source_of = dict(
+        Article.objects.filter(pk__in=article_ids).values_list("pk", "source_id")
+    )
+    titles: dict[int, list[str]] = {}
+    for source_id, title in Topic.objects.filter(
+        sources__in=set(source_of.values()) - {None}
+    ).values_list("sources", "title"):
+        titles.setdefault(source_id, []).append(title)
+    return {pk: sorted(titles.get(source_id, [])) for pk, source_id in source_of.items()}
+
+
+def _entities_by_article(article_ids: list[int]) -> dict[int, list[dict]]:
+    """Top entities per article from its latest completed extraction, by claim count.
+
+    Only entities that already exist: names still waiting for review have no claim yet.
+    """
+    rows = (
+        Claim.objects.filter(
+            source_article_id__in=article_ids,
+            analysis_run_id=_latest_extract_run_id(
+                "source_article_id", "source_article__current_version"
+            ),
+        )
+        .values("source_article_id", "entity_id", "entity__name", "entity__type")
+        .annotate(mentions=Count("id"))
+        .order_by("source_article_id", "-mentions", "entity__name")
+    )
+    found: dict[int, list[dict]] = {pk: [] for pk in article_ids}
+    for row in rows:
+        chips = found[row["source_article_id"]]
+        if len(chips) < MAX_ENTITY_CHIPS:
+            chips.append({"name": row["entity__name"], "type": row["entity__type"]})
+    return found
 
 
 @router.get("/feed", response=FeedPage)
@@ -146,6 +193,8 @@ def feed(
             "is_analysed", "is_analysis_failed",
         )[offset : offset + limit]
     )
+    topics = _topics_by_article([row["id"] for row in rows])
+    entities = _entities_by_article([row["id"] for row in rows])
     return {
         "items": [
             {
@@ -161,6 +210,8 @@ def feed(
                 "published_at": row["published_at"],
                 "discovered_at": row["created_at"],
                 "analysis_status": analysis_status(row),
+                "topics": topics.get(row["id"], []),
+                "entities": entities.get(row["id"], []),
             }
             for row in rows
         ],
@@ -169,6 +220,79 @@ def feed(
         "offset": offset,
         "has_more": offset + len(rows) < total,
         "more_count": more_count,
+    }
+
+
+@router.get("/saved", response=FeedPage)
+def saved(
+    request: HttpRequest,
+    status: Literal["all", "unread", "read"] = "all",
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
+):
+    """The reading queue: articles the user saved, most recently saved first.
+
+    ``status`` narrows it to the ones not read yet or already read.
+    """
+    mine = SaveState.objects.filter(
+        user=request.user, article=OuterRef("pk"), is_saved=True
+    )
+    was_read = ReadState.objects.filter(
+        user=request.user, article=OuterRef("pk"), is_read=True
+    )
+    articles = Article.objects.filter(Exists(mine))
+    if status == "unread":
+        articles = articles.exclude(Exists(was_read))
+    elif status == "read":
+        articles = articles.filter(Exists(was_read))
+    total = articles.count()
+    rows = list(
+        articles.annotate(
+            excerpt=Substr("body", 1, EXCERPT_LENGTH),
+            source_name=F("source__name"),
+            published_at=Coalesce("source_published_at", "created_at"),
+            saved_at=Subquery(mine.values("updated_at")[:1]),
+            is_read=Exists(was_read),
+            is_saved=Exists(mine),
+            is_analysed=Exists(current_run(status=AnalysisRun.Status.COMPLETED)),
+            is_analysis_failed=Exists(
+                current_run(failure_reason=AnalysisRun.FailureReason.INVALID_OUTPUT)
+            ),
+        )
+        .order_by("-saved_at", "-id")
+        .values(
+            "id", "url", "title", "excerpt", "current_version", "is_read",
+            "is_saved", "source_name", "is_backfill", "published_at", "created_at",
+            "is_analysed", "is_analysis_failed",
+        )[offset : offset + limit]
+    )
+    topics = _topics_by_article([row["id"] for row in rows])
+    entities = _entities_by_article([row["id"] for row in rows])
+    return {
+        "items": [
+            {
+                "article_id": row["id"],
+                "url": row["url"],
+                "title": row["title"],
+                "excerpt": row["excerpt"],
+                "revision_number": row["current_version"],
+                "is_read": row["is_read"],
+                "is_saved": row["is_saved"],
+                "source_name": row["source_name"],
+                "is_backfill": row["is_backfill"],
+                "published_at": row["published_at"],
+                "discovered_at": row["created_at"],
+                "analysis_status": analysis_status(row),
+                "topics": topics.get(row["id"], []),
+                "entities": entities.get(row["id"], []),
+            }
+            for row in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(rows) < total,
+        "more_count": 0,
     }
 
 
@@ -283,6 +407,8 @@ def delta(
         )[offset : offset + limit]
     )
     article_ids = [row["id"] for row in rows]
+    topics = _topics_by_article(article_ids)
+    entities = _entities_by_article(article_ids)
 
     claims_by_article: dict[int, list[dict]] = {pk: [] for pk in article_ids}
     claim_rows = (
@@ -342,6 +468,8 @@ def delta(
                 "published_at": row["published_at"],
                 "discovered_at": row["created_at"],
                 "analysis_status": analysis_status(row),
+                "topics": topics.get(row["id"], []),
+                "entities": entities.get(row["id"], []),
                 "claims": claims_by_article[row["id"]],
                 "also_covered_by": len(covering[row["id"]]),
             }

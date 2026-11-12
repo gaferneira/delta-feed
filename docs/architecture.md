@@ -25,7 +25,7 @@ One repository, three processes: the Astro reader (server-rendered), the Django 
 | 2. Extract | Job `analysis.extract` sends one revision to the model and stores validated output on an analysis run: entities, claims (predicate, value, scope), verbatim quotes. | `analysis/use_cases.py`, `analysis/contracts/extraction.py`, `analysis/prompts/` |
 | 3. Resolve names | Each extracted name is stored as a mention. It resolves by itself only when exactly one entity has that name or alias. Otherwise it waits for review. A link or create can be undone until its comparison job starts (20 seconds by default); a dismiss can be restored at any time. | `application/mention_resolution.py`, `knowledge/api.py` |
 | 4. Compare | Job `analysis.compare` (or `analysis.compare_group` after a review) classifies each claim against the entity's active claims and writes it. | `application/claim_comparison.py`, `core/claim_delta.py`, `core/claim_fingerprint.py` |
-| 5. Read | `GET /api/reader/delta` returns, per article, the claims that are not duplicates. `GET /api/reader/feed` returns every article. | `reader/api.py` |
+| 5. Read | `GET /api/reader/delta` returns, per article, the claims that are not duplicates, leaving out articles already read or saved. `GET /api/reader/feed` returns every article. `GET /api/reader/saved` returns the reading queue, filterable by read state. Feed and Saved items carry the article's topics (from its source) and up to three known entities from its latest extraction. | `reader/api.py` |
 
 ### Comparison tiers
 
@@ -59,7 +59,7 @@ The write happens under a lock on the entity, after rechecking that its claims d
 | `application` | Use cases that cross modules: name resolution, claim comparison |
 | `core` | Pure rules with no Django imports: claim comparison, fingerprints, guide eligibility |
 | `guides` | Guides, entries, revisions, proposals |
-| `reader` | Feed and Delta endpoints, read and save state |
+| `reader` | Feed, Delta and Saved endpoints, read and save state |
 | `jobs` | Job queue, leases, retries, the `run_worker` command |
 | `frontend/src/pages` | Astro pages; `lib/api/` has the server and browser API clients |
 

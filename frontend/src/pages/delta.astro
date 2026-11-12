@@ -102,7 +102,11 @@ const retryHref = `${Astro.url.pathname}${Astro.url.search}`;
 </SiteLayout>
 
 <script>
-  import { initDeltaActions } from '../lib/delta-actions';
+  import { setArticleRead, setArticleSaved } from '../lib/api/browser';
+  import { initDismissActions } from '../lib/dismiss-actions';
 
-  initDeltaActions();
+  initDismissActions({
+    read: { message: 'Marked as read.', apply: setArticleRead },
+    save: { message: 'Moved to your reading queue.', apply: setArticleSaved },
+  });
 </script>

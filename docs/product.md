@@ -17,9 +17,9 @@ Why not an RSS reader: it shows every article and leaves you to find the one new
 | Page | Shows |
 |---|---|
 | Delta | Articles with at least one claim that is not a duplicate. Marking one read or saving it removes the card (with Undo) and keeps it out of Delta |
-| Feed | Every article, newest first |
+| Feed | Every article, newest first. Cards show their source's topics and up to three entities the article mentions (known entities only) |
 | Names | Names found in articles that the system does not know yet, waiting for your one-time decision |
-| Saved | Your reading queue |
+| Saved | Your reading queue: every article you saved, most recently saved first, with Unread (default), Read and All tabs. Mark read changes state in place (the card changes tab on the next load) and opening an article marks it read. Unsave removes the card with Undo. Delta never marks read on open |
 | Guides | Your own reference articles as structured entries, with proposed changes to review |
 
 ## Promises
@@ -38,7 +38,7 @@ These are separate and must not be merged in code or UI:
 - **Novelty**: whether a claim is already in the baseline.
 - **Relevance**: whether you care.
 - **Delivery**: whether and where it is shown.
-- **Read state**: whether you opened it.
+- **Read state**: whether you read it. Opening an article from Saved marks it read; Delta never does.
 
 Indexed is not read. Familiar is not unimportant: a security advisory about something you use is still shown.
 

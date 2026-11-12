@@ -43,8 +43,8 @@ const found = relativeTime(item.discovered_at);
     <span class="meta">{item.also_covered_by > 0 ? alsoCoveredLabel(item.also_covered_by) : ''}</span>
     <div class="foot-actions">
       {href && <a class="qb" href={href} target="_blank" rel="noopener noreferrer">Read original <span aria-hidden="true">&nearr;</span></a>}
-      <button type="button" class="qb" data-action="read">Mark read</button>
-      <button type="button" class="qb" data-action="save">Save</button>
+      <button type="button" class="qb" data-dismiss="read">Mark read</button>
+      <button type="button" class="qb" data-dismiss="save">Save</button>
     </div>
     <span class="action-status" role="status" aria-live="polite"></span>
   </div>

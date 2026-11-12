@@ -3,6 +3,11 @@ export interface ItemsResponse<T> {
   items: T[];
 }
 
+export interface EntityRef {
+  name: string;
+  type: string;
+}
+
 export interface FeedItem {
   article_id: number;
   url: string;
@@ -16,6 +21,10 @@ export interface FeedItem {
   published_at: string | null;
   discovered_at: string;
   analysis_status: 'unanalysed' | 'analysed' | 'failed';
+  /** Titles of the topics the article's source belongs to. */
+  topics: string[];
+  /** The most-mentioned known entities of the article, at most three. */
+  entities: EntityRef[];
 }
 
 export interface FeedPage {

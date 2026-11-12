@@ -10,7 +10,8 @@ The only place that tracks what works. Last updated 2026-11-12.
 |---|---|---|
 | Sign-in, first-run setup, onboarding with starter packs | Works | Automated tests |
 | RSS polling with bounded backfill, manual submission | Works | Automated tests; 181 real articles imported from 9 feeds |
-| Reader: feed, read and save | Works | Automated tests |
+| Reader: feed, read, save | Works | Automated tests |
+| Saved page, topic and entity chips on Feed and Saved, Delta cards removed on read or save with Undo | Built, not covered by tests | `/api/reader/saved`, topics and entities checked with ad hoc requests; the screens have not been opened in a browser |
 | Guides: manual entries, revisions, proposals to review | Works | Automated tests |
 | Background worker: jobs, leases, retries | Works | Automated tests |
 | Extraction with a local model | Works | Real run, see below |

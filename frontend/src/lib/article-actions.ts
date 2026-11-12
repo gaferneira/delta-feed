@@ -30,23 +30,40 @@ export function initArticleActions(root: ParentNode = document): void {
           else await setArticleSaved(id, next);
 
           button.setAttribute('aria-pressed', String(next));
-          button.textContent = next
+          // Keep the icon: only the label span changes when the button has one.
+          const label = button.querySelector<HTMLElement>('[data-label]') ?? button;
+          label.textContent = next
             ? (button.dataset.labelOn ?? DEFAULT_LABELS[action].on)
             : (button.dataset.labelOff ?? DEFAULT_LABELS[action].off);
           if (action === 'read') {
             card.classList.toggle('is-read', next);
             card.querySelectorAll<HTMLElement>('[data-read-chip]').forEach((chip) => { chip.hidden = !next; });
           }
-          if (indicator) {
-            indicator.textContent = action === 'read' ? (next ? 'Read' : 'Unread') : (next ? 'Saved' : 'Not saved');
-            indicator.classList.toggle('active', next);
-          }
+          if (indicator) indicator.hidden = !next;
         } catch (error) {
           if (status) status.textContent = error instanceof Error ? error.message : 'Could not save this change.';
         } finally {
           button.disabled = false;
         }
       });
+    });
+  });
+}
+
+/**
+ * Opening an article from its title counts as reading it: press the card's own "Mark read" toggle
+ * when the article is still unread, so the label, icon and button update in place. Handles plain,
+ * modified and middle clicks. Call it after `initArticleActions` so the buttons are wired.
+ */
+export function initMarkReadOnOpen(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>('[data-article-card]').forEach((card) => {
+    const markRead = () => {
+      const toggle = card.querySelector<HTMLButtonElement>('[data-action="read"][aria-pressed="false"]');
+      if (toggle && !toggle.disabled) toggle.click();
+    };
+    card.querySelectorAll<HTMLAnchorElement>('h2 a[href]').forEach((link) => {
+      link.addEventListener('click', markRead);
+      link.addEventListener('auxclick', (event) => { if (event.button === 1) markRead(); });
     });
   });
 }

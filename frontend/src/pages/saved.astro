@@ -1,0 +1,124 @@
+---
+import ArticleCard from '../components/ArticleCard.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { loginLocation } from '../lib/auth-gate';
+import { ServerApiError, serverApiRequest } from '../lib/api/server';
+import type { FeedItem, FeedPage } from '../lib/api/types';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+const PAGE_SIZE = 25;
+type QueueView = 'unread' | 'read' | 'all';
+const requestedStatus = Astro.url.searchParams.get('status');
+const status: QueueView = requestedStatus === 'read' ? 'read' : requestedStatus === 'all' ? 'all' : 'unread';
+const rawOffset = Number(Astro.url.searchParams.get('offset'));
+const offset = Number.isInteger(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+const cookie = Astro.request.headers.get('cookie');
+
+let page: FeedPage | null = null;
+let loadError = false;
+try {
+  page = await serverApiRequest<FeedPage>(`/api/reader/saved?status=${status}&limit=${PAGE_SIZE}&offset=${offset}`, { cookie });
+} catch (error) {
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = true;
+}
+
+function pageHref(nextOffset: number): string {
+  const params = new URLSearchParams({ status });
+  if (nextOffset > 0) params.set('offset', String(nextOffset));
+  return `/saved?${params}`;
+}
+function cardProps(article: FeedItem) {
+  return {
+    id: article.article_id,
+    title: article.title || 'Untitled article',
+    source: article.source_name ?? 'Manual submission',
+    url: article.url,
+    excerpt: article.excerpt,
+    timestamp: article.published_at,
+    timestampKind: 'published' as const,
+    isBackfill: article.is_backfill,
+    isRead: article.is_read,
+    isSaved: article.is_saved,
+    topics: article.topics,
+    entities: article.entities,
+  };
+}
+
+const items = page?.items ?? [];
+const pastEnd = items.length === 0 && offset > 0 && (page?.total ?? 0) > 0;
+const previousOffset = page && page.offset > 0 ? Math.max(0, page.offset - page.limit) : null;
+const nextOffset = page?.has_more ? page.offset + page.limit : null;
+const showPager = page !== null && (previousOffset !== null || nextOffset !== null);
+const retryHref = `${Astro.url.pathname}${Astro.url.search}`;
+---
+<SiteLayout title="Saved" description="Your reading queue.">
+  <section class="page-heading">
+    <p class="eyebrow">Your reading queue</p>
+    <h1>Saved</h1>
+    <p class="lede">Articles you set aside to read later, most recently saved first.</p>
+    <nav class="feed-views" aria-label="Saved view">
+      <a href="/saved?status=unread" aria-current={status === 'unread' ? 'page' : undefined}>Unread</a>
+      <a href="/saved?status=read" aria-current={status === 'read' ? 'page' : undefined}>Read</a>
+      <a href="/saved?status=all" aria-current={status === 'all' ? 'page' : undefined}>All</a>
+    </nav>
+  </section>
+
+  {loadError ? (
+    <div class="error-state" role="status">
+      Saved articles are temporarily unavailable. <a href={retryHref}>Try again</a>.
+    </div>
+  ) : items.length > 0 ? (
+    <>
+      <div class="article-list" aria-label="Saved articles">
+        {items.map((article) => <ArticleCard article={cardProps(article)} variant="saved" />)}
+      </div>
+      {showPager && page && (
+        <nav class="feed-pagination" aria-label="Saved pages">
+          {previousOffset !== null ? <a rel="prev" href={pageHref(previousOffset)}>Previous</a> : null}
+          <span class="muted-copy"> {page.offset + 1}–{page.offset + items.length} of {page.total} </span>
+          {nextOffset !== null ? <a rel="next" href={pageHref(nextOffset)}>Next</a> : null}
+        </nav>
+      )}
+    </>
+  ) : pastEnd ? (
+    <div class="friendly-state">
+      <h2>That&rsquo;s the end of the queue</h2>
+      <p class="state-links"><a href={pageHref(0)}>Back to the start</a></p>
+    </div>
+  ) : status === 'unread' ? (
+    <div class="friendly-state">
+      <h2>Nothing left to read</h2>
+      <p>Everything you saved is read. Save more from Delta or Feed, or look at what you already read.</p>
+      <p class="state-links"><a href="/saved?status=read">Read</a><a href="/delta">Open Delta</a></p>
+    </div>
+  ) : status === 'read' ? (
+    <div class="friendly-state">
+      <h2>Nothing read yet</h2>
+      <p>Saved articles you mark as read show up here.</p>
+      <p class="state-links"><a href="/saved?status=unread">Unread</a></p>
+    </div>
+  ) : (
+    <div class="friendly-state">
+      <h2>Nothing saved</h2>
+      <p>Use Save on a Delta card or in Feed and the article waits here until you get to it.</p>
+      <p class="state-links"><a href="/delta">Open Delta</a><a href="/">Open Feed</a></p>
+    </div>
+  )}
+</SiteLayout>
+
+<script>
+  import { setArticleSaved } from '../lib/api/browser';
+  import { initArticleActions, initMarkReadOnOpen } from '../lib/article-actions';
+  import { initDismissActions } from '../lib/dismiss-actions';
+
+  // "Mark read" changes state in place and a card changes tab on the next load. Opening an
+  // article counts as reading it. Only "Unsave" removes the card, so only it leaves an Undo.
+  initArticleActions();
+  initMarkReadOnOpen();
+  initDismissActions({
+    unsave: { message: 'Removed from your reading queue.', apply: (id, on) => setArticleSaved(id, !on) },
+  });
+</script>

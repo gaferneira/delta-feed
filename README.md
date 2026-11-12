@@ -16,7 +16,7 @@ A self-hosted reader that shows what is new to you. It breaks each article into 
 2. **Extract.** A model you choose (local by default) lists the things an article mentions and its claims about them, each with the sentence it came from.
 3. **Review names.** A name the system has not seen waits for you, once: track it, mark it the same as something already tracked, or ignore it. Nothing joins your baseline unreviewed.
 4. **Compare.** Each claim is checked against what is already known about that thing: duplicate, new, changed, conflicting, or not sure.
-5. **Read.** Delta shows one card per article with only the claims that are not duplicates. Feed lists every article, so nothing is hidden.
+5. **Read.** Delta shows one card per article with only the claims that are not duplicates. Feed lists every article, so nothing is hidden. Saved is your reading queue.
 
 A second feature, living guides, keeps your own reference articles as structured entries and proposes changes with evidence. Nothing changes without your approval.
 

@@ -15,9 +15,13 @@ interface Props {
     isBackfill?: boolean;
     isRead: boolean;
     isSaved: boolean;
+    topics?: string[];
+    entities?: { name: string; type: string }[];
   };
+  /** The reading queue: hides the Saved pill, and Unsave removes the card (with Undo). */
+  variant?: 'saved';
 }
-const { article } = Astro.props;
+const { article, variant } = Astro.props;
 const href = httpUrl(article.url);
 const relative = relativeTime(article.timestamp);
 const absolute = absoluteTime(article.timestamp);
@@ -38,20 +42,31 @@ const timeTitle = `${article.timestampKind === 'published' ? 'Published' : 'Foun
     {article.excerpt && <p class="article-excerpt">{article.excerpt}</p>}
     <div class="article-state" aria-label="Article status">
       {article.isBackfill && <span class="state-indicator">Earlier</span>}
-      <span class:list={['state-indicator', { active: article.isRead }]} data-read-indicator>
-        {article.isRead ? 'Read' : 'Unread'}
-      </span>
-      <span class:list={['state-indicator', { active: article.isSaved }]} data-save-indicator>
-        {article.isSaved ? 'Saved' : 'Not saved'}
-      </span>
+      {(article.topics ?? []).map((topic) => <span class="state-indicator topic-chip">{topic}</span>)}
+      {(article.entities ?? []).map((entity) => <span class="state-indicator entity-chip" title={entity.type}>{entity.name}</span>)}
+      {variant !== 'saved' && (
+        <span class="state-indicator active" data-save-indicator hidden={!article.isSaved}>Saved</span>
+      )}
     </div>
   </div>
   <div class="article-actions" aria-label="Article actions">
     <button type="button" class="quiet-button" data-action="read" aria-pressed={article.isRead}>
-      {article.isRead ? 'Mark unread' : 'Mark read'}
+      <svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+        <circle class="shape" cx="12" cy="12" r="9" />
+        <path class="mark" d="M8 12.5l3 3 5-6" />
+      </svg>
+      <span data-label>{article.isRead ? 'Mark unread' : 'Mark read'}</span>
     </button>
-    <button type="button" class="quiet-button" data-action="save" aria-pressed={article.isSaved}>
-      {article.isSaved ? 'Unsave' : 'Save'}
+    <button
+      type="button"
+      class="quiet-button"
+      {...(variant === 'saved' ? { 'data-dismiss': 'unsave' } : { 'data-action': 'save' })}
+      aria-pressed={article.isSaved}
+    >
+      <svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+        <path class="shape" d="M6 3.5h12a.5.5 0 0 1 .5.5v16.5L12 16.8l-6.5 3.7V4a.5.5 0 0 1 .5-.5z" />
+      </svg>
+      <span data-label>{article.isSaved ? 'Unsave' : 'Save'}</span>
     </button>
     <span class="action-status" role="status" aria-live="polite"></span>
   </div>
