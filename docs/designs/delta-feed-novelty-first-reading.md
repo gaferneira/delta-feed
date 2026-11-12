@@ -6,6 +6,18 @@
 
 --------------------------------------------------------------------------------
 
+## Implementation status (2026-11-12)
+
+Units 1 and 2 are built, and from Unit 3 the Delta endpoint. Units 4 to 7, baseline readiness, the landing preference and the Feed additions are not. Current state: [status](../status.md).
+
+Where the code differs from this document, after the first run on real articles:
+
+*   A name matches an entity by name or alias regardless of entity type; the model labelled one thing with different types between articles.
+*   Entity types are a fixed list of six: software, hardware, model, service, practice, other.
+*   A malformed extraction item (undeclared reference, quote not verbatim) is dropped and listed under `dropped` in the run output; the article fails only when nothing survives.
+*   When the model skips or repeats a claim in a comparison answer, only that claim is "not sure"; the other answers are used.
+*   Repeated coverage of one event across different entities is not detected (see the [roadmap](../roadmap.md#open-decisions)).
+
 ## Overview
 
 Delta Feed is a self-hosted reader for tech people who run homelab servers. It shows what is new to the reader and hides nothing for good. It breaks each article into claims about things (tools, versions, features), compares those claims with a baseline of what the reader already has, and shows one card per article containing only the new, changed or conflicting claims. A plain chronological Feed lists every article.
@@ -235,7 +247,7 @@ Each row names a way the design can fail or do harm, what limits it, and what re
 
 ## Detailed Implementation Plan
 
-Paths are relative to the repository root. Backend paths under `backend/src/delta_feed/` are shortened to `delta_feed/`. Work is split into commit-sized units, each with at most one migration file. Build the units in order; each needs the data or endpoints of the earlier ones it uses.
+Paths are relative to the repository root. Backend paths under `backend/src/delta_feed/` are shortened to `delta_feed/`. Work is split into commit-sized units, each with at most one migration file. Each unit needs the data or endpoints of the earlier ones it uses. The build order is in the [roadmap](../roadmap.md#adr-0008-delta-page-and-feed): the evaluation harness (Unit 6) runs right after Unit 2, and the frontend (Unit 5) comes after every backend unit.
 
 | Unit | Scope | Migration |
 |---|---|---|
@@ -340,7 +352,7 @@ Lettered items (7a, 9a, 10a, 17a, 22a, 32a) belong to the unit of the item befor
 35. `docs/architecture.md` (Modify). Add the mention queue and comparison tiers to the invariants, and the baseline-version recheck.
 36. `docs/glossary.md` (Modify). Add mention, pending mention, fingerprint.
 37. `docs/roadmap.md` (Modify). Record the unit order, the provisional readiness settings and the queue-size measurement.
-38. `README.md` (Modify). Update Project status and local-development commands only after each unit's checks in the Verification Plan have passed and the manual browser check has been done.
+38. `docs/status.md` and `docs/development.md` (Modify). Update status and local-development commands only after each unit's checks in the Verification Plan have passed and the manual browser check has been done.
 
 ### Verification Plan
 

@@ -11,6 +11,11 @@ class AnalysisRun(models.Model):
         COMPLETED = "completed", "Completed"
         FAILED = "failed", "Failed"
 
+    class Kind(models.TextChoices):
+        EXTRACT = "extract", "Extract"
+        # One compare_claims model call; results live in `output`.
+        COMPARE = "compare", "Compare"
+
     class FailureReason(models.TextChoices):
         NONE = "", "None"
         # The model answered, but its output failed validation; not retried automatically.
@@ -32,8 +37,11 @@ class AnalysisRun(models.Model):
         on_delete=models.PROTECT,
         related_name="analysis_runs",
     )
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.EXTRACT)
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    # Set on an extraction run once its claims were compared and written.
+    compared_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RUNNING)
     model_version = models.CharField(max_length=120)
     prompt_version = models.CharField(max_length=120)

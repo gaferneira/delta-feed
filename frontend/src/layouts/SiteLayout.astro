@@ -1,11 +1,37 @@
 ---
 import BaseHead from './BaseHead.astro';
+import { serverApiRequest } from '../lib/api/server';
+import type { MentionSummary } from '../lib/api/types';
 
 interface Props {
   title: string;
   description?: string;
 }
 const { title, description = 'A quiet place for useful reading.' } = Astro.props;
+
+const cookie = Astro.request.headers.get('cookie');
+// The badge is a convenience: skip the call when signed out and render nothing if it fails.
+let pendingNames = 0;
+if (cookie && /(?:^|;\s*)sessionid=/.test(cookie)) {
+  try {
+    const summary = await serverApiRequest<MentionSummary>('/api/knowledge/mentions/summary', { cookie });
+    pendingNames = Number.isFinite(summary.pending_groups) ? Math.max(0, summary.pending_groups) : 0;
+  } catch {
+    pendingNames = 0;
+  }
+}
+
+const pathname = Astro.url.pathname.length > 1 ? Astro.url.pathname.replace(/\/+$/, '') : Astro.url.pathname;
+const links = [
+  { href: '/delta', label: 'Delta' },
+  { href: '/', label: 'Feed' },
+  { href: '/names', label: 'Names', count: pendingNames },
+  { href: '/proposals', label: 'Discoveries' },
+  { href: '/guides', label: 'Guides' },
+  { href: '/sources', label: 'Sources' },
+  { href: '/submit', label: 'Add article' },
+];
+const isCurrent = (href: string) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`));
 ---
 <!doctype html>
 <html lang="en">
@@ -16,11 +42,12 @@ const { title, description = 'A quiet place for useful reading.' } = Astro.props
     <header class="site-header">
       <a class="wordmark" href="/">Delta Feed<span aria-hidden="true">.</span></a>
       <nav aria-label="Main navigation">
-        <a href="/">Feed</a>
-        <a href="/proposals">Discoveries</a>
-        <a href="/guides">Guides</a>
-        <a href="/sources">Sources</a>
-        <a href="/submit">Add article</a>
+        {links.map((link) => (
+          <a href={link.href} aria-current={isCurrent(link.href) ? 'page' : undefined}>
+            {link.label}
+            {link.count ? <span class="count" aria-label={`${link.count} waiting`}>{link.count}</span> : null}
+          </a>
+        ))}
       </nav>
     </header>
     <main class="page-shell"><slot /></main>

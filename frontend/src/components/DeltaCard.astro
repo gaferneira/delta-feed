@@ -1,0 +1,51 @@
+---
+import DeltaClaim from './DeltaClaim.astro';
+import type { DeltaItem } from '../lib/api/types';
+import { alsoCoveredLabel, splitClaims, unsureSummary } from '../lib/delta';
+import { absoluteTime, relativeTime } from '../lib/time';
+import { httpUrl } from '../lib/url';
+
+interface Props {
+  item: DeltaItem;
+}
+const { item } = Astro.props;
+const href = httpUrl(item.url);
+const title = item.title || 'Untitled article';
+const groups = splitClaims(item.claims);
+const published = relativeTime(item.published_at);
+const found = relativeTime(item.discovered_at);
+---
+<article class:list={['card', 'delta-card', ]} data-article-card data-article-id={item.article_id}>
+  <p class="meta">
+    <b>{item.source_name ?? 'Manual submission'}</b>
+    {published && <> <span aria-hidden="true">&middot;</span> <time datetime={item.published_at ?? undefined} title={absoluteTime(item.published_at)}>Published {published}</time></>}
+    {found && <> <span aria-hidden="true">&middot;</span> <time datetime={item.discovered_at} title={absoluteTime(item.discovered_at)}>Found {found}</time></>}
+  </p>
+  <h2 class="card-title">{href ? <a href={href} target="_blank" rel="noopener noreferrer">{title}</a> : title}</h2>
+
+  {groups.shown.length > 0 && (
+    <ul class="bul">{groups.shown.map((claim) => <DeltaClaim claim={claim} />)}</ul>
+  )}
+  {groups.collapsed.length > 0 && (
+    <details class="disclosure">
+      <summary class="qb">+{groups.collapsed.length} more</summary>
+      <ul class="bul">{groups.collapsed.map((claim) => <DeltaClaim claim={claim} />)}</ul>
+    </details>
+  )}
+  {groups.unsure.length > 0 && (
+    <details class="disclosure" open={groups.unsureOpen}>
+      <summary class="qb">{unsureSummary(groups.unsure.length)}</summary>
+      <ul class="bul">{groups.unsure.map((claim) => <DeltaClaim claim={claim} />)}</ul>
+    </details>
+  )}
+
+  <div class="foot">
+    <span class="meta">{item.also_covered_by > 0 ? alsoCoveredLabel(item.also_covered_by) : ''}</span>
+    <div class="foot-actions">
+      {href && <a class="qb" href={href} target="_blank" rel="noopener noreferrer">Read original <span aria-hidden="true">&nearr;</span></a>}
+      <button type="button" class="qb" data-action="read">Mark read</button>
+      <button type="button" class="qb" data-action="save">Save</button>
+    </div>
+    <span class="action-status" role="status" aria-live="polite"></span>
+  </div>
+</article>

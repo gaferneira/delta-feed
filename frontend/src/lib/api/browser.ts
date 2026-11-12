@@ -8,7 +8,9 @@ import type {
   GuideProposal,
 } from '../guides/types';
 import type { OnboardingCompletion } from '../onboarding';
-import type { ItemsResponse } from './types';
+import type {
+  ItemsResponse, MentionSummary, ResolveBatchItem, ResolveRequest, ResolveResult, UndoGroup, UndoItem,
+} from './types';
 import type { Source, SourceRegistrationInput, SourceRegistrationResult } from '../sources/types';
 
 export type FetchLike = typeof fetch;
@@ -38,6 +40,13 @@ export async function apiRequest<T = unknown>(
   headers.set('Accept', 'application/json');
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
+  // A session that never passed through the sign-in page has no CSRF cookie yet;
+  // fetch one before the first change instead of failing it with a 403.
+  const method = (init.method ?? 'GET').toUpperCase();
+  const changes = method !== 'GET' && method !== 'HEAD';
+  if (changes && typeof document !== 'undefined' && !csrfToken()) {
+    await fetcher('/api/accounts/csrf', { headers: { Accept: 'application/json' }, credentials: 'include' }).catch(() => undefined);
+  }
   const token = csrfToken();
   if (token && !headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
 
@@ -204,4 +213,29 @@ export async function getGuideEntryRevisions(
     fetcher,
   );
   return payload.items;
+}
+
+export function resolveName(request: ResolveRequest, fetcher?: FetchLike): Promise<ResolveResult> {
+  return apiRequest<ResolveResult>('/api/knowledge/mentions/resolve', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  }, fetcher);
+}
+
+export async function resolveNamesBatch(items: ResolveRequest[], fetcher?: FetchLike): Promise<ResolveBatchItem[]> {
+  return (await apiRequest<{ results: ResolveBatchItem[] }>('/api/knowledge/mentions/resolve-batch', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  }, fetcher)).results;
+}
+
+export async function undoNames(groups: UndoGroup[], fetcher?: FetchLike): Promise<UndoItem[]> {
+  return (await apiRequest<{ results: UndoItem[] }>('/api/knowledge/mentions/undo', {
+    method: 'POST',
+    body: JSON.stringify({ groups }),
+  }, fetcher)).results;
+}
+
+export function getMentionSummary(fetcher?: FetchLike): Promise<MentionSummary> {
+  return apiRequest<MentionSummary>('/api/knowledge/mentions/summary', {}, fetcher);
 }

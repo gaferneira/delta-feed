@@ -36,11 +36,11 @@ def _assertion(claim: Mapping[str, Any] | Any) -> tuple[bool, frozenset[str], st
     return negated, frozenset(canonical), " ".join(tokens)
 
 
-def classify_claim_delta(
+def classify_claim_delta_with_match(
     new_claim: Mapping[str, Any] | Any,
     existing_claims: Sequence[Mapping[str, Any] | Any],
-) -> str:
-    """Return duplicate/refinement/contradiction/new using scope and text rules.
+) -> tuple[str, Mapping[str, Any] | Any | None]:
+    """Return (classification, matched existing claim or None) using scope and text rules.
 
     This intentionally does not infer semantic equivalence. Only normalized
     exact assertions, explicit lexical negation, and strict token-set detail
@@ -50,13 +50,24 @@ def classify_claim_delta(
     new_negated, new_tokens, new_text = _assertion(new_claim)
     comparable = [claim for claim in existing_claims if _scope(claim) == _scope(new_claim)]
     if not comparable:
-        return "new"
+        return "new", None
 
-    assertions = [_assertion(claim) for claim in comparable]
-    if any(old_text == new_text for _, _, old_text in assertions):
-        return "duplicate"
-    if any(old_tokens == new_tokens and old_negated != new_negated for old_negated, old_tokens, _ in assertions):
-        return "contradiction"
-    if any(old_tokens < new_tokens and old_negated == new_negated for old_negated, old_tokens, _ in assertions):
-        return "refinement"
-    return "new"
+    assertions = [(claim, _assertion(claim)) for claim in comparable]
+    for claim, (_, _, old_text) in assertions:
+        if old_text == new_text:
+            return "duplicate", claim
+    for claim, (old_negated, old_tokens, _) in assertions:
+        if old_tokens == new_tokens and old_negated != new_negated:
+            return "contradiction", claim
+    for claim, (old_negated, old_tokens, _) in assertions:
+        if old_tokens < new_tokens and old_negated == new_negated:
+            return "refinement", claim
+    return "new", None
+
+
+def classify_claim_delta(
+    new_claim: Mapping[str, Any] | Any,
+    existing_claims: Sequence[Mapping[str, Any] | Any],
+) -> str:
+    """Return duplicate/refinement/contradiction/new; see the matching variant."""
+    return classify_claim_delta_with_match(new_claim, existing_claims)[0]

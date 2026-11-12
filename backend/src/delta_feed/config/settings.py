@@ -148,6 +148,7 @@ BACKFILL_MAX_ITEMS = _env_int("BACKFILL_MAX_ITEMS", 20)
 RSS_POLL_INTERVAL_MINUTES = _env_int("RSS_POLL_INTERVAL_MINUTES", 30)
 TODAY_BUDGET = _env_int("TODAY_BUDGET", 12)
 TODAY_PER_SOURCE_CAP = _env_int("TODAY_PER_SOURCE_CAP", 3)
+MENTION_UNDO_SECONDS = _env_int("MENTION_UNDO_SECONDS", 20)
 
 # Model work (ADR 0006, Phase B). Only the named provider is used, never a fallback.
 # "ollama" needs OLLAMA_HOST and OLLAMA_MODEL; "openai_compatible" (e.g. LM Studio) needs

@@ -16,7 +16,7 @@ Worker job leasing (`select_for_update(skip_locked=True)`) and claim classificat
 1. **One database, always.** No split across engines or by data type.
 2. **PostgreSQL is required for any deployment or daily-trial use.** SQLite remains supported only for local development and automated tests, where no concurrent workers run.
 3. **pgvector is optional until embeddings are used.** The first release compares claims within an entity's baseline and does not need database-side vector search; entity candidate search uses the existing JSON-vector ranking. The extension is added by a migration when an embedding feature is built and evaluated, not before.
-4. **No platform compatibility claim is made until tested**, per the [technology version policy](../technology.md#version-policy).
+4. **No platform compatibility claim is made until tested**, per the [stack notes](../architecture.md#stack).
 
 ## Consequences
 

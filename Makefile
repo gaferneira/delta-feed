@@ -6,8 +6,8 @@
 
 SHELL := /bin/bash
 
-# Ensure nvm-managed Node 22 is used if system node is outdated (Astro / npm requirement)
-NVM_INIT := if [ -s "$$HOME/.nvm/nvm.sh" ]; then . "$$HOME/.nvm/nvm.sh" && nvm use 22 >/dev/null 2>&1 || true; fi
+# Ensure nvm-managed Node 24 is used if system node is outdated (Astro / npm requirement)
+NVM_INIT := if [ -s "$$HOME/.nvm/nvm.sh" ]; then . "$$HOME/.nvm/nvm.sh" && nvm use 24 >/dev/null 2>&1 || true; fi
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend

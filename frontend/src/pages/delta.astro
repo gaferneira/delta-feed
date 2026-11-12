@@ -1,0 +1,108 @@
+---
+import DeltaCard from '../components/DeltaCard.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { loginLocation } from '../lib/auth-gate';
+import { ServerApiError, serverApiRequest } from '../lib/api/server';
+import type { DeltaPage } from '../lib/api/types';
+import { namesWaitingLabel, rangeLabel, selectDeltaEmptyState } from '../lib/delta';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+const PAGE_SIZE = 25;
+const rawOffset = Number(Astro.url.searchParams.get('offset'));
+const offset = Number.isInteger(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+const cookie = Astro.request.headers.get('cookie');
+
+let page: DeltaPage | null = null;
+let loadError = false;
+try {
+  page = await serverApiRequest<DeltaPage>(`/api/reader/delta?limit=${PAGE_SIZE}&offset=${offset}`, { cookie });
+} catch (error) {
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = true;
+}
+
+function pageHref(nextOffset: number): string {
+  return nextOffset > 0 ? `/delta?offset=${nextOffset}` : '/delta';
+}
+
+const items = page?.items ?? [];
+const pending = page?.pending_mentions ?? { groups: 0, articles: 0 };
+const namesWait = pending.groups > 0;
+const emptyState = selectDeltaEmptyState(pending.groups);
+const hasCards = items.length > 0;
+const pastEnd = !hasCards && offset > 0 && (page?.total ?? 0) > 0;
+const newerOffset = page && page.offset > 0 ? Math.max(0, page.offset - page.limit) : null;
+const olderOffset = page?.has_more ? page.offset + page.limit : null;
+const showPager = page !== null && (newerOffset !== null || olderOffset !== null);
+const retryHref = `${Astro.url.pathname}${Astro.url.search}`;
+---
+<SiteLayout title="Delta" description="Claims that are new, changed or in conflict with what you already know.">
+  <section class="page-heading">
+    <p class="eyebrow">What is new to you</p>
+    <h1>Delta</h1>
+    <p class="lede">One card per article, built only from claims that are new, changed or in conflict with what you already know. Everything else stays in <a href="/">Feed</a>.</p>
+    <p class="meta page-meta">Newest first</p>
+  </section>
+
+  {loadError ? (
+    <div class="card state-card state-card-error" role="alert">
+      <h2 class="state-title">Delta didn&rsquo;t load</h2>
+      <p class="meta">The server didn&rsquo;t respond. Your read and save state is safe.</p>
+      <div class="state-actions"><a class="btn2" href={retryHref}>Try again</a><a class="btn2" href="/">Open Feed</a></div>
+    </div>
+  ) : (
+    <>
+      {namesWait && hasCards && (
+        <div class="notice">
+          <div class="notice-copy">
+            <strong>{namesWaitingLabel(pending.groups, pending.articles)}</strong>
+            <span class="meta">Their claims are not compared yet, so those articles may be missing a card.</span>
+          </div>
+          <a class="btn2" href="/names">Review names</a>
+        </div>
+      )}
+
+      {hasCards ? (
+        <div class="delta-list" aria-label="Delta cards">
+          {items.map((item) => <DeltaCard item={item} />)}
+        </div>
+      ) : pastEnd ? null : emptyState === 'names-waiting' ? (
+        <div class="card state-card">
+          <h2 class="state-title">{namesWaitingLabel(pending.groups, pending.articles)}</h2>
+          <p class="meta">Delta only shows articles whose claims have been compared with what you know, and that waits on these names. The articles are readable in Feed right now.</p>
+          <div class="state-actions"><a class="btn" href="/names">Review names</a><a class="btn2" href="/">Open Feed</a></div>
+        </div>
+      ) : (
+        <div class="card state-card">
+          <h2 class="state-title">No cards yet</h2>
+          <p class="meta">Delta never fills itself with articles that have not been compared with what you know. Everything is readable in Feed, where nothing is hidden.</p>
+          <div class="state-actions"><a class="btn2" href="/">Open Feed</a></div>
+        </div>
+      )}
+
+      {(pastEnd || (hasCards && !page?.has_more)) && (
+        <div class="card state-card state-card-end">
+          <p class="meta">That&rsquo;s every card. Older articles with nothing new are in <a href="/">Feed</a>.</p>
+        </div>
+      )}
+
+      {showPager && page && (
+        <nav class="delta-pager" aria-label="Delta pages">
+          <span class="meta">{rangeLabel(page.offset, items.length, page.total)}</span>
+          <div class="pager-actions">
+            {newerOffset !== null ? <a class="btn2" rel="prev" href={pageHref(newerOffset)}>Newer</a> : <span class="btn2 is-disabled" aria-disabled="true">Newer</span>}
+            {olderOffset !== null ? <a class="btn2" rel="next" href={pageHref(olderOffset)}>Older</a> : <span class="btn2 is-disabled" aria-disabled="true">Older</span>}
+          </div>
+        </nav>
+      )}
+    </>
+  )}
+</SiteLayout>
+
+<script>
+  import { initDeltaActions } from '../lib/delta-actions';
+
+  initDeltaActions();
+</script>

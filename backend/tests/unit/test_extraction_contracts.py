@@ -52,8 +52,20 @@ def test_evidence_offsets_are_resolved_from_verbatim_quotes():
 def test_evidence_quotes_must_match_supplied_source_text():
     result = ExtractionResult.model_validate(valid_result())
 
-    with pytest.raises(ValueError, match="does not match"):
-        resolve_evidence(result, "Widget supports ARM64 on Windows")
+    output = resolve_evidence(result, "Widget supports ARM64 on Windows")
+
+    assert [entity["ref"] for entity in output["entities"]] == ["entity-1"]
+    assert output["claims"] == []
+    assert output["dropped"] == [
+        {"kind": "claim", "ref": "entity-1", "reason": "evidence_not_found", "detail": "supports"}
+    ]
+
+
+def test_output_is_rejected_when_no_item_survives():
+    result = ExtractionResult.model_validate(valid_result())
+
+    with pytest.raises(ValueError, match="no extracted item survived"):
+        resolve_evidence(result, "Unrelated text")
 
 
 @pytest.mark.parametrize(
@@ -63,7 +75,6 @@ def test_evidence_quotes_must_match_supplied_source_text():
         lambda data: data["claims"][0].update(confidence=1.5),
         lambda data: data["claims"][0].update(unreviewed_field="bad"),
         lambda data: data["entities"][0].update(name=123),
-        lambda data: data["claims"][0].update(entity_ref="missing"),
         lambda data: data["claims"][0]["evidence"][0].update(start=7),
     ],
 )

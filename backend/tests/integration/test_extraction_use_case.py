@@ -113,8 +113,9 @@ def test_extraction_pipeline_rejects_evidence_not_found_in_article():
         }
     )
 
-    with pytest.raises(ValueError, match="does not match"):
-        extract_article(source_article=article, adapter=adapter)
+    run, _ = extract_article(source_article=article, adapter=adapter)
 
-    run = AnalysisRun.objects.get(source_article=article)
-    assert run.status == AnalysisRun.Status.FAILED
+    run.refresh_from_db()
+    assert run.status == AnalysisRun.Status.COMPLETED
+    assert run.output["claims"] == []
+    assert [item["reason"] for item in run.output["dropped"]] == ["evidence_not_found"]

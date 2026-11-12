@@ -1,6 +1,6 @@
 # Ingestion contract — v1 design
 
-**Status:** Accepted behavior and input modes; not an implemented endpoint or executable schema. Exact limits, idempotency retention and wire enums must be locked and tested during scaffolding.
+**Status:** Accepted behavior and input modes. Built-in RSS and manual submission exist; the collector endpoint described here is not built (design: [collector ingestion API](designs/collector-ingestion-api.md)). Exact limits, idempotency retention and wire enums must be locked and tested during scaffolding.
 
 ## Boundary
 

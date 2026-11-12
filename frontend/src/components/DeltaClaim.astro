@@ -1,0 +1,22 @@
+---
+import type { DeltaClaim } from '../lib/api/types';
+import { claimParts, kindClass, kindLabel, matchLabel } from '../lib/delta';
+
+interface Props {
+  claim: DeltaClaim;
+}
+const { claim } = Astro.props;
+const parts = claimParts(claim);
+---
+<li>
+  <div class="claim-head">
+    <span class:list={['chip', kindClass(claim.classification)]}>{kindLabel(claim.classification)}</span>
+    {claim.first_sighting && <span class="chip k-first">First sighting</span>}
+    <strong class="claim-entity">{claim.entity_name}</strong>
+  </div>
+  <span class="claim-text">
+    {parts.label && <span class="claim-attr">{parts.label}: </span>}{parts.text}
+  </span>
+  {claim.matched_claim_text && <p class="was">{matchLabel(claim.classification)}: {claim.matched_claim_text}</p>}
+  {claim.evidence_text && <p class="quote">&ldquo;{claim.evidence_text}&rdquo;</p>}
+</li>

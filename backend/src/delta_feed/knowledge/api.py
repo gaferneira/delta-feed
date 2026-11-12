@@ -1,8 +1,10 @@
 import math
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
+from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.http import HttpRequest
 from ninja import Field, Router, Schema
@@ -11,8 +13,20 @@ from ninja.responses import Status
 from pydantic import field_validator, model_validator
 
 from delta_feed.analysis.models import AnalysisRun
+from delta_feed.analysis.use_cases import enqueue_compare_group
 from delta_feed.application.entity_matching import match_or_suggest_entities
-from delta_feed.knowledge.models import Claim, Entity
+from delta_feed.application.mention_resolution import (
+    AlreadyCompared,
+    InvalidMentionResolution,
+    MentionGroupNotFound,
+    NothingToUndo,
+    candidate_entities,
+    pending_mention_counts,
+    resolve_group,
+    undo_group,
+)
+from delta_feed.core.claim_fingerprint import normalize_name
+from delta_feed.knowledge.models import Claim, Entity, ExtractedMention
 from delta_feed.knowledge.use_cases import AnalysisRunNotCompleted, record_claim
 
 router = Router(tags=["knowledge"])
@@ -202,8 +216,11 @@ def delete_entity(request: HttpRequest, entity_id: int):
     try:
         deleted, _ = Entity.objects.filter(pk=entity_id).delete()
     except ProtectedError as exc:
-        # Claims are append-only evidence; an entity that has any cannot be deleted.
-        raise HttpError(409, "Entity has recorded claims and cannot be deleted") from exc
+        # Claims are append-only evidence and mentions reference the entity; either
+        # blocks deletion.
+        raise HttpError(
+            409, "Entity has recorded claims or mentions and cannot be deleted"
+        ) from exc
     if not deleted:
         raise HttpError(404, "Entity not found")
     return Status(204, None)
@@ -357,3 +374,264 @@ def list_entity_claims(request: HttpRequest, entity_id: int):
             _claim_output(claim, superseded_by.get(claim.pk, [])) for claim in claims
         ]
     }
+
+
+class MentionCandidateOut(Schema):
+    entity_id: int
+    name: str
+    type: str
+
+
+class MentionArticleOut(Schema):
+    article_id: int
+    title: str
+    url: str
+
+
+class MentionGroupOut(Schema):
+    normalized_name: str
+    name_samples: list[str]
+    entity_type: str
+    count: int
+    article_titles: list[str]
+    articles: list[MentionArticleOut]
+    article_count: int
+    claim_count: int
+    evidence_sample: str
+    candidates: list[MentionCandidateOut]
+    entity_id: int | None
+    entity_name: str | None
+    decided_at: datetime | None
+    auto_matched: bool
+
+
+class MentionGroupList(Schema):
+    items: list[MentionGroupOut]
+
+
+class MentionSummaryOut(Schema):
+    pending_groups: int
+    pending_articles: int
+
+
+class NewEntityIn(Schema):
+    name: str = Field(min_length=1, max_length=250)
+    entity_type: str = Field(min_length=1, max_length=80)
+    canonical_url: str | None = Field(default=None, max_length=2048)
+
+
+class MentionResolveIn(Schema):
+    normalized_name: str = Field(min_length=1, max_length=250)
+    entity_type: str = Field(min_length=1, max_length=80)
+    action: Literal["link", "create", "dismiss"]
+    entity_id: int | None = None
+    new_entity: NewEntityIn | None = None
+
+
+class MentionResolveOut(Schema):
+    resolved_mentions: int
+    jobs_enqueued: int
+    entity_id: int | None
+    entity_name: str | None
+    undo_seconds: int | None
+
+
+class MentionResolveBatchIn(Schema):
+    items: list[MentionResolveIn] = Field(min_length=1, max_length=50)
+
+
+class MentionResolveItemOut(Schema):
+    normalized_name: str
+    entity_type: str
+    ok: bool
+    resolved_mentions: int
+    jobs_enqueued: int
+    entity_id: int | None
+    entity_name: str | None
+    undo_seconds: int | None
+    error: str | None
+
+
+class MentionResolveBatchOut(Schema):
+    results: list[MentionResolveItemOut]
+
+
+class MentionGroupRef(Schema):
+    normalized_name: str = Field(min_length=1, max_length=250)
+    entity_type: str = Field(min_length=1, max_length=80)
+
+
+class MentionUndoIn(Schema):
+    groups: list[MentionGroupRef] = Field(min_length=1, max_length=50)
+
+
+class MentionUndoItemOut(Schema):
+    normalized_name: str
+    entity_type: str
+    ok: bool
+    restored_mentions: int
+    error: str | None
+
+
+class MentionUndoOut(Schema):
+    results: list[MentionUndoItemOut]
+
+
+@router.get("/mentions", response=MentionGroupList)
+def list_mentions(request: HttpRequest, status: Literal["pending", "resolved", "dismissed"] = "pending"):
+    groups: dict[tuple[str, str], list[ExtractedMention]] = {}
+    mentions = ExtractedMention.objects.filter(status=status).select_related(
+        "source_article", "entity"
+    )
+    for mention in mentions.order_by("id"):
+        key = (mention.normalized_name, mention.entity_type.strip().casefold())
+        groups.setdefault(key, []).append(mention)
+    items = []
+    for (normalized_name, _), members in groups.items():
+        first = members[0]
+        names = list(dict.fromkeys(mention.name for mention in members))[:3]
+        titles = list(dict.fromkeys(mention.source_article.title for mention in members))[:3]
+        articles = {}
+        for mention in members:
+            article = mention.source_article
+            articles.setdefault(
+                article.pk, {"article_id": article.pk, "title": article.title, "url": article.url}
+            )
+        quotes = first.evidence[0].get("quote", "") if first.evidence else ""
+        decided = [m for m in members if m.resolved_at is not None]
+        entity = None
+        if status == ExtractedMention.Status.RESOLVED:
+            by_decision = max(decided, key=lambda m: m.resolved_at) if decided else None
+            entity = (by_decision or first).entity
+        items.append(
+            {
+                "normalized_name": normalized_name,
+                "name_samples": names,
+                "entity_type": first.entity_type,
+                "count": len(members),
+                "article_titles": titles,
+                "articles": list(articles.values())[:3],
+                "article_count": len(articles),
+                "claim_count": sum(len(mention.claims) for mention in members),
+                "evidence_sample": quotes[:300],
+                "candidates": [
+                    {"entity_id": entity.pk, "name": entity.name, "type": entity.type}
+                    for entity in candidate_entities(normalized_name, first.entity_type)
+                ],
+                "entity_id": entity.pk if entity else None,
+                "entity_name": entity.name if entity else None,
+                "decided_at": max((m.resolved_at for m in decided), default=None),
+                "auto_matched": status == ExtractedMention.Status.RESOLVED and not decided,
+            }
+        )
+    items.sort(key=lambda item: (-item["count"], item["normalized_name"]))
+    return {"items": items}
+
+
+@router.get("/mentions/summary", response=MentionSummaryOut)
+def mentions_summary(request: HttpRequest):
+    groups, articles = pending_mention_counts()
+    return {"pending_groups": groups, "pending_articles": articles}
+
+
+class ResolutionRejected(Exception):
+    def __init__(self, status_code: int, message: str):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _apply_resolution(payload: MentionResolveIn) -> dict:
+    """One decision, in its own transaction; raises ResolutionRejected on refusal."""
+    entity = None
+    if payload.action == "link":
+        if payload.entity_id is None:
+            raise ResolutionRejected(422, "link requires entity_id")
+        try:
+            entity = Entity.objects.get(pk=payload.entity_id)
+        except Entity.DoesNotExist as exc:
+            raise ResolutionRejected(422, "Entity not found") from exc
+    elif payload.entity_id is not None:
+        raise ResolutionRejected(422, "entity_id is only valid with link")
+    if payload.action != "create" and payload.new_entity is not None:
+        raise ResolutionRejected(422, "new_entity is only valid with create")
+    undo_seconds = settings.MENTION_UNDO_SECONDS if payload.action != "dismiss" else None
+    try:
+        with transaction.atomic():
+            resolved = resolve_group(
+                normalize_name(payload.normalized_name),
+                payload.entity_type,
+                payload.action,
+                entity=entity,
+                new_entity=payload.new_entity.model_dump() if payload.new_entity else None,
+            )
+    except MentionGroupNotFound as exc:
+        raise ResolutionRejected(404, str(exc)) from exc
+    except (InvalidMentionResolution, IntegrityError) as exc:
+        raise ResolutionRejected(422, str(exc)) from exc
+    jobs_enqueued = 0
+    if payload.action != "dismiss":
+        # One job per analysis run: each compares that run's claims for the group.
+        run_ids = list(dict.fromkeys(mention.analysis_run_id for mention in resolved))
+        for run_id in run_ids:
+            job = enqueue_compare_group(
+                normalize_name(payload.normalized_name),
+                payload.entity_type,
+                run_id,
+                delay_seconds=undo_seconds or 0,
+            )
+            jobs_enqueued += job is not None
+    target = resolved[0].entity
+    return {
+        "resolved_mentions": len(resolved),
+        "jobs_enqueued": jobs_enqueued,
+        "entity_id": target.pk if target else None,
+        "entity_name": target.name if target else None,
+        "undo_seconds": undo_seconds,
+    }
+
+
+@router.post("/mentions/resolve", response=MentionResolveOut)
+def resolve_mentions(request: HttpRequest, payload: MentionResolveIn):
+    try:
+        return _apply_resolution(payload)
+    except ResolutionRejected as exc:
+        raise HttpError(exc.status_code, str(exc)) from exc
+
+
+@router.post("/mentions/resolve-batch", response=MentionResolveBatchOut)
+def resolve_mentions_batch(request: HttpRequest, payload: MentionResolveBatchIn):
+    results = []
+    for item in payload.items:
+        base = {"normalized_name": item.normalized_name, "entity_type": item.entity_type}
+        try:
+            outcome = _apply_resolution(item)
+        except ResolutionRejected as exc:
+            results.append(
+                {
+                    **base,
+                    "ok": False,
+                    "resolved_mentions": 0,
+                    "jobs_enqueued": 0,
+                    "entity_id": None,
+                    "entity_name": None,
+                    "undo_seconds": None,
+                    "error": str(exc),
+                }
+            )
+        else:
+            results.append({**base, "ok": True, "error": None, **outcome})
+    return {"results": results}
+
+
+@router.post("/mentions/undo", response=MentionUndoOut)
+def undo_mentions(request: HttpRequest, payload: MentionUndoIn):
+    results = []
+    for ref in payload.groups:
+        base = {"normalized_name": ref.normalized_name, "entity_type": ref.entity_type}
+        try:
+            restored = undo_group(normalize_name(ref.normalized_name), ref.entity_type)
+        except (NothingToUndo, AlreadyCompared) as exc:
+            results.append({**base, "ok": False, "restored_mentions": 0, "error": str(exc)})
+        else:
+            results.append({**base, "ok": True, "restored_mentions": restored, "error": None})
+    return {"results": results}

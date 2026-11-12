@@ -1,54 +1,53 @@
-# Product scope
+# Product
 
-## Outcome
+## Who it is for
 
-A useful daily reading destination, not a processing dashboard or a list of generated summaries, plus a small set of your own reference articles that stay current. Replace repetitive browsing without concealing important developments.
+One technical person who follows a handful of feeds about software, AI and home-automation hardware, and already knows most of what those feeds repeat. Topics are configuration, not built-in categories.
 
-## Reading experience
+## The daily loop
 
-- **Delta:** one card per article that has at least one new, changed or conflicting claim, built only from those claims, so a roundup shows only its unfamiliar items. It becomes the landing page once the baseline is ready ([ADR 0008](decisions/0008-delta-page-and-feed.md)); until then Feed is the landing page and a banner offers the switch.
-- **Feed:** every article, newest first, including analysed, nothing-new, unanalysed and failed ones. Nothing Delta leaves out is hidden here.
-- **Saved:** reading queue.
-- **Guides:** your own living articles (e.g. recommended skills every project should have, Raspberry Pi home automation) as structured entries with personal notes, evidence and reviewed revision history. Manual first; model-proposed updates arrive with analysis.
-- Uncertain items, suppressions with reasons and processing failures stay inspectable in Feed.
+1. Open **Delta**. Each card is one article, reduced to the claims that are new, changed or in conflict with what earlier articles said, with the sentence each came from.
+2. Review the **names** that are waiting. For a name the system has not seen, say once what it is: something to track, another name for something already tracked, or nothing worth tracking. Until then its claims stay out of your baseline.
+3. Open **Feed** when you want everything. It lists every article, including those with nothing new, not yet analysed, or failed.
 
-Cards explain what is new, why they appear, supporting sources, and publication versus discovery time. Provide read/save, already-knew, and wrong-match actions.
+Why not an RSS reader: it shows every article and leaves you to find the one new item in a roundup, or to notice that the fifth report of a release adds nothing.
 
-[Content policy](content-policy.md) defines accepted shadow-mode, living-guide, onboarding, feedback, retention and transaction defaults. [Ingestion contract](ingestion-contract.md) defines URL-fetch/provided-text inputs and retry/revision rules. These are planned behavior, not running features.
+## Pages
+
+| Page | Shows |
+|---|---|
+| Delta | Articles with at least one claim that is not a duplicate. Marking one read or saving it removes the card (with Undo) and keeps it out of Delta |
+| Feed | Every article, newest first |
+| Names | Names found in articles that the system does not know yet, waiting for your one-time decision |
+| Saved | Your reading queue |
+| Guides | Your own reference articles as structured entries, with proposed changes to review |
+
+## Promises
+
+- **Nothing is hidden.** Delta is a view; Feed always has the full list.
+- **Unsure stays visible.** A claim the system cannot place is shown as "not sure", never dropped as a duplicate.
+- **Evidence for every claim.** A claim without a verbatim sentence from the article is discarded.
+- **You approve changes.** Names, guide edits and corrections wait for your decision.
+- **Your model, your data.** Local model by default; no cloud inference unless configured.
 
 ## Independent concepts
 
-Identity, registry novelty, user relevance, delivery, and acknowledgement/read status are distinct. Indexed is not read. Familiar does not mean unimportant: security advisories and release-status changes remain eligible for display.
+These are separate and must not be merged in code or UI:
 
-Topics are many-to-many labels on articles/entities/events, not separate identity registries. One entity can belong to several topics without duplication. Start with explicit preferences and watchlists, not opaque learned ranking.
+- **Identity**: which thing a name refers to.
+- **Novelty**: whether a claim is already in the baseline.
+- **Relevance**: whether you care.
+- **Delivery**: whether and where it is shown.
+- **Read state**: whether you opened it.
 
-## MVP acceptance: reader
+Indexed is not read. Familiar is not unimportant: a security advisory about something you use is still shown.
 
-- [ ] Authenticated article submission persists a revision and returns an inspectable job/status.
-- [ ] A responsive reader displays original/source-linked cards and persists read/save state.
-- [ ] Topics/sources are explicitly administered; quiet backfill preserves unread state and does not flood the Delta page.
-- [ ] Repeated submissions are idempotent; changed content is revisioned.
-- [ ] Roundups yield known/new/uncertain item decisions supported by evidence.
-- [ ] Entity timelines retain duplicate, novel, refinement, contradiction, and availability distinctions without overwriting history.
-- [ ] No similarity-only match silently suppresses a discovery.
-- [ ] Uncertain/model-failed items remain accessible and retryable.
-- [ ] Sources and topics are configurable without code edits.
-- [ ] Restart/retry and backup/restore tests pass.
-- [ ] Real daily trial evaluates missed important items and repeated cards before enabling automatic suppression.
+## Living guides
 
-## MVP acceptance: guides
+A guide is your own article for a purpose ("Raspberry Pi home automation"), kept as structured entries plus your own writing. When news shows that an entry should be added, updated, warned about or retired, the system proposes the change with evidence. Your text is never overwritten. Guide review never delays news.
 
-- [ ] Guides support manual structured entries, preserved personal prose and revision history, before any AI.
-- [ ] With confirmation, guide entries mark entities as familiar and can seed the watchlist.
-- [ ] Model-proposed add/update/warning/retire changes are evidence-backed and require review; new does not mean recommended.
-- [ ] Approval rejects stale proposals; corrections propose repairs rather than silently rewriting published advice.
+Guides are a second feature on the same data. They are not part of the daily loop above.
 
-Guide review is a separate path: news processing never waits for guide approval.
+## Out of scope
 
-## Non-goals
-
-Multi-user tenancy, hosted SaaS, autonomous source discovery, arbitrary browser scraping, agent tool execution on source text, real-time guarantees, and advanced recommendation systems.
-
-## Unresolved
-
-Initial feeds/watchlist, trial duration, acceptable error rates, content retention policy, and supported deployment resources. The code is licensed under AGPL-3.0; that license covers this software, not the third-party content it reads. Source discovery and article access are not equivalent to a right to republish full copyrighted content; default to attributed excerpts and original links, and respect source restrictions.
+Multi-user hosting, a hosted service, autonomous source discovery, arbitrary scraping, paywall bypass, model-written article summaries, automatic hiding of articles, and learned recommendation systems.

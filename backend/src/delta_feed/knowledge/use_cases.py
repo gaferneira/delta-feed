@@ -1,8 +1,11 @@
+from dataclasses import dataclass
+
 from django.db import transaction
 from django.utils import timezone
 
 from delta_feed.analysis.models import AnalysisRun
 from delta_feed.core.claim_delta import classify_claim_delta
+from delta_feed.core.claim_fingerprint import claim_fingerprint
 from delta_feed.knowledge.models import Claim, Entity
 
 
@@ -14,8 +17,23 @@ class AnalysisRunWithoutRevision(ValueError):
     """The run predates revision tracking, so its evidence cannot be verified."""
 
 
-def record_claim(entity, claim_data, analysis_run):
-    """Classify and append a source-backed claim with its analysis provenance."""
+@dataclass(frozen=True)
+class ClaimDecision:
+    """A comparison result decided outside this writer (fingerprint, model, ...)."""
+
+    classification: str
+    method: str
+    matched_claim: Claim | None = None
+    model_version: str = ""
+    prompt_version: str = ""
+
+
+def record_claim(entity, claim_data, analysis_run, *, decision=None):
+    """Classify and append a source-backed claim with its analysis provenance.
+
+    With ``decision`` the lexical classifier is skipped and the decision stored;
+    without it the lexical classifier runs and the method stays ``manual``.
+    """
     if analysis_run.status != AnalysisRun.Status.COMPLETED:
         raise AnalysisRunNotCompleted(
             "claims can only be recorded from a completed analysis run"
@@ -52,6 +70,13 @@ def record_claim(entity, claim_data, analysis_run):
         "availability": claim_data.get("availability"),
     }
     observed_at = claim_data.get("observed_at") or timezone.now()
+    predicate = claim_data.get("predicate")
+    value = claim_data.get("value")
+    fingerprint = (
+        claim_fingerprint(entity.pk, predicate, value, scope)
+        if isinstance(predicate, str) and isinstance(value, str) and predicate and value
+        else None
+    )
 
     with transaction.atomic():
         # Serializes classification against other record_claim calls per entity
@@ -60,18 +85,30 @@ def record_claim(entity, claim_data, analysis_run):
         existing = list(Claim.objects.filter(entity=entity))
         superseded_ids = {prior.supersedes_id for prior in existing if prior.supersedes_id}
         active_claims = [prior for prior in existing if prior.pk not in superseded_ids]
-        candidate = {"claim_text": claim_text, **scope}
-        classification = classify_claim_delta(candidate, active_claims)
         supersedes = None
-        if classification == Claim.Classification.CONTRADICTION:
-            conflicts = [
-                prior
-                for prior in active_claims
-                if classify_claim_delta(candidate, [prior])
-                == Claim.Classification.CONTRADICTION
-            ]
-            if conflicts:
-                supersedes = max(conflicts, key=lambda prior: (prior.observed_at, prior.pk))
+        comparison = {}
+        if decision is not None:
+            classification = decision.classification
+            if classification == Claim.Classification.CONTRADICTION:
+                supersedes = decision.matched_claim
+            comparison = {
+                "matched_claim": decision.matched_claim,
+                "comparison_method": decision.method,
+                "comparison_model_version": decision.model_version,
+                "comparison_prompt_version": decision.prompt_version,
+            }
+        else:
+            candidate = {"claim_text": claim_text, **scope}
+            classification = classify_claim_delta(candidate, active_claims)
+            if classification == Claim.Classification.CONTRADICTION:
+                conflicts = [
+                    prior
+                    for prior in active_claims
+                    if classify_claim_delta(candidate, [prior])
+                    == Claim.Classification.CONTRADICTION
+                ]
+                if conflicts:
+                    supersedes = max(conflicts, key=lambda prior: (prior.observed_at, prior.pk))
 
         claim = Claim.objects.create(
             entity=entity,
@@ -85,6 +122,10 @@ def record_claim(entity, claim_data, analysis_run):
             analysis_run=analysis_run,
             classification=classification,
             supersedes=supersedes,
+            predicate=predicate,
+            value=value,
+            fingerprint=fingerprint,
+            **comparison,
         )
         from delta_feed.guides.use_cases import (
             generate_guide_update_proposals_for_claim,

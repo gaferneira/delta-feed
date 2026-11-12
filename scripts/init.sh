@@ -4,7 +4,7 @@
 # Scope: dev-only setup (SQLite backend DB, no Postgres/pgvector, no HTTPS,
 # no Compose). This is NOT a production install script — Milestone 6
 # (private deployment) has not been implemented or verified yet. See
-# README.md#project-status before treating this as a deploy story.
+# docs/status.md before treating this as a deploy story.
 #
 # What this does:
 #   - backend: uv sync (creates/updates the venv from uv.lock) + migrate

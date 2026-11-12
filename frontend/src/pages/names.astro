@@ -1,0 +1,171 @@
+---
+import NameCard from '../components/NameCard.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { loginLocation } from '../lib/auth-gate';
+import { ServerApiError, serverApiRequest } from '../lib/api/server';
+import type { MentionList, MentionSummary } from '../lib/api/types';
+import {
+  batchConfirmLabel, batchEligible, batchLabel, displayName, isLargeQueue, KEY_LIST, largeQueueTitle, listMeta,
+  mentionsLabel, parseStatus, STATUS_TABS, typeLabel,
+} from '../lib/names';
+import { absoluteTime, relativeTime } from '../lib/time';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+const status = parseStatus(Astro.url.searchParams.get('status'));
+const cookie = Astro.request.headers.get('cookie');
+
+let list: MentionList | null = null;
+let summary: MentionSummary | null = null;
+let loadError = false;
+try {
+  [list, summary] = await Promise.all([
+    serverApiRequest<MentionList>(`/api/knowledge/mentions?status=${status}`, { cookie }),
+    serverApiRequest<MentionSummary>('/api/knowledge/mentions/summary', { cookie }),
+  ]);
+} catch (error) {
+  if (error instanceof ServerApiError && error.status === 401) return Astro.redirect(loginLocation(Astro.url.pathname, Astro.url.search));
+  loadError = true;
+}
+
+const items = list?.items ?? [];
+const pendingGroups = summary?.pending_groups ?? 0;
+const pendingArticles = summary?.pending_articles ?? 0;
+const eligible = status === 'pending' ? items.map((group, index) => ({ group, index })).filter(({ group }) => batchEligible([group]).length > 0) : [];
+const retryHref = `${Astro.url.pathname}${Astro.url.search}`;
+const tabHref = (tab: string) => (tab === 'pending' ? '/names' : `/names?status=${tab}`);
+const meta = status === 'pending' ? listMeta('pending', items.length, pendingArticles) : listMeta(status, items.length);
+
+function dateLabel(iso: string | null): string {
+  return relativeTime(iso);
+}
+---
+<SiteLayout title="Names" description="Names found in articles that do not match anything Delta knows.">
+  <section class="page-heading">
+    <p class="eyebrow">Your decision, once per name</p>
+    <h1>Names</h1>
+    <p class="lede">Delta Feed found these names in your articles and does not know them yet. Say once what each one is: something to track, another name for something already tracked, or nothing worth tracking. News about the things you track shows up in Delta.</p>
+  </section>
+
+  <nav class="tabs" aria-label="Status">
+    {STATUS_TABS.map((tab) => (
+      <a href={tabHref(tab.status)} aria-current={tab.status === status ? 'page' : undefined} class:list={[{ on: tab.status === status }]}>
+        {tab.label}
+        {tab.status === 'pending' && pendingGroups > 0 && <span class="count" data-pending-count aria-label={`${pendingGroups} waiting`}>{pendingGroups}</span>}
+      </a>
+    ))}
+  </nav>
+
+  <div class="names-app" data-names-page data-status={status} data-articles={pendingArticles}>
+    {loadError ? (
+      <div class="card state-card state-card-error" role="alert">
+        <h2 class="state-title">Names didn&rsquo;t load</h2>
+        <p class="meta">The server didn&rsquo;t respond. Nothing was changed.</p>
+        <div class="state-actions"><a class="btn2" href={retryHref}>Try again</a><a class="btn2" href="/delta">Open Delta</a></div>
+      </div>
+    ) : (
+      <>
+        <p class="meta list-meta" data-meta>{items.length > 0 ? meta : ''}</p>
+        <p class="sr-only" role="status" aria-live="polite" data-live></p>
+        {status === 'dismissed' && <p class="meta">These names are ignored when they appear again. Their claims never join your baseline.</p>}
+
+        {status === 'pending' && (
+          <>
+            <div class="card large-queue" data-large-queue hidden={!isLargeQueue(items.length)}>
+              <h2 class="state-title" data-large-title>{largeQueueTitle(items.length)}</h2>
+              <p class="meta">Start with the most mentioned: they unlock the most claims. You don&rsquo;t need to clear the list for Delta to work.</p>
+            </div>
+
+            {eligible.length > 1 && (
+              <details class="disclosure batch" data-batch hidden={eligible.length < 2}>
+                <summary class="btn2 batch-summary"><span data-batch-title>{batchLabel(eligible.length)}</span></summary>
+                <form class="batch-form" data-batch-form>
+                  <p class="meta">Each is tracked with the extracted name and type. Untick the ones that need a closer look.</p>
+                  <ul class="batch-list">
+                    {eligible.map(({ group, index }) => (
+                      <li data-batch-row data-key={index}>
+                        <label class="batch-option">
+                          <input type="checkbox" name="batch" value={index} checked />
+                          <span><strong>{displayName(group)}</strong> <span class="meta">&middot; {typeLabel(group.entity_type)} &middot; {mentionsLabel(group.count, group.article_count)}</span></span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <div class="name-form-actions">
+                    <button type="submit" class="btn" data-batch-confirm>{batchConfirmLabel(eligible.length)}</button>
+                    <button type="button" class="btn2" data-batch-cancel>Cancel</button>
+                  </div>
+                </form>
+              </details>
+            )}
+          </>
+        )}
+
+        <ul class="name-list" data-name-list aria-label={`${status} names`}>
+          {status === 'pending' && items.map((group, index) => (
+            <li class="name-item" data-item><NameCard group={group} index={index} /></li>
+          ))}
+
+          {status === 'resolved' && items.map((group) => (
+            <li class="name-row card" data-row>
+              <span><strong>{displayName(group)}</strong>{group.entity_name && <> <span aria-hidden="true">&rarr;</span><span class="sr-only"> tracked as </span> {group.entity_name}</>}</span>
+              <span class="meta">{group.auto_matched ? 'Matched automatically' : 'You decided'}{group.decided_at && <> &middot; <time datetime={group.decided_at} title={absoluteTime(group.decided_at)}>{dateLabel(group.decided_at)}</time></>} &middot; {mentionsLabel(group.count, 0)}</span>
+            </li>
+          ))}
+
+          {status === 'dismissed' && items.map((group, index) => (
+            <li class="name-row card" data-row data-key={index} data-name={group.normalized_name} data-type={group.entity_type} data-display={displayName(group)}>
+              <span><strong>{displayName(group)}</strong> <span class="chip k-plain">{typeLabel(group.entity_type)}</span></span>
+              <span class="row-end">
+                <span class="meta">{group.decided_at ? <>Ignored <time datetime={group.decided_at} title={absoluteTime(group.decided_at)}>{dateLabel(group.decided_at)}</time> &middot; </> : ''}{mentionsLabel(group.count, 0)}</span>
+                <button type="button" class="qb" data-restore aria-label={`Restore ${displayName(group)}`}>Restore</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div class="card state-card name-empty" data-empty hidden={items.length > 0}>
+          {status === 'pending' ? (
+            <>
+              <h2 class="state-title">All names are reviewed</h2>
+              <p class="meta">New names show up here as articles are analysed.</p>
+              <div class="state-actions"><a class="btn2" href="/delta">Back to Delta</a></div>
+            </>
+          ) : status === 'resolved' ? (
+            <>
+              <h2 class="state-title">Nothing tracked yet</h2>
+              <p class="meta">Names you track, and names that matched something tracked by themselves, appear here.</p>
+            </>
+          ) : (
+            <>
+              <h2 class="state-title">Nothing ignored</h2>
+              <p class="meta">Names you ignore appear here, and you can restore them.</p>
+            </>
+          )}
+        </div>
+
+        {status === 'pending' && (
+          <>
+            <div class="key-panel card" data-key-panel id="key-panel" hidden>
+              <h2 class="sub">Keyboard</h2>
+              <dl class="key-list">
+                {KEY_LIST.map((entry) => <><dt><kbd>{entry.keys}</kbd></dt><dd>{entry.does}</dd></>)}
+              </dl>
+            </div>
+            <p class="key-hint" data-key-hint aria-hidden="true">
+              <span>&uarr;&darr; move</span> <span>Enter confirm</span> <span>S same</span> <span>T track</span> <span>I ignore</span> <span>U undo</span>
+              <button type="button" class="key-toggle" data-key-toggle tabindex="-1">? keys</button>
+            </p>
+          </>
+        )}
+      </>
+    )}
+  </div>
+</SiteLayout>
+
+<script>
+  import { initNamesReview } from '../lib/names-review';
+
+  initNamesReview();
+</script>

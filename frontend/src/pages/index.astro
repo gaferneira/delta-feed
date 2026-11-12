@@ -176,44 +176,9 @@ const viewNotes: Record<FeedView, string> = {
 </SiteLayout>
 
 <script>
-  import { setArticleRead, setArticleSaved } from '../lib/api/browser';
+  import { initArticleActions } from '../lib/article-actions';
 
-  document.querySelectorAll<HTMLElement>('[data-article-card]').forEach((card) => {
-    const id = card.dataset.articleId;
-    if (!id) return;
-
-    card.querySelectorAll<HTMLButtonElement>('[data-action]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const status = card.querySelector<HTMLElement>('.action-status');
-        const indicator = button.dataset.action === 'read'
-          ? card.querySelector<HTMLElement>('[data-read-indicator]')
-          : card.querySelector<HTMLElement>('[data-save-indicator]');
-        const wasActive = button.getAttribute('aria-pressed') === 'true';
-        button.disabled = true;
-        if (status) status.textContent = '';
-
-        try {
-          const next = !wasActive;
-          if (button.dataset.action === 'read') await setArticleRead(id, next);
-          else await setArticleSaved(id, next);
-
-          button.setAttribute('aria-pressed', String(next));
-          if (button.dataset.action === 'read') button.textContent = next ? 'Mark unread' : 'Mark read';
-          else button.textContent = next ? 'Unsave' : 'Save';
-          if (indicator) {
-            indicator.textContent = button.dataset.action === 'read'
-              ? (next ? 'Read' : 'Unread')
-              : (next ? 'Saved' : 'Not saved');
-            indicator.classList.toggle('active', next);
-          }
-        } catch (error) {
-          if (status) status.textContent = error instanceof Error ? error.message : 'Could not save this change.';
-        } finally {
-          button.disabled = false;
-        }
-      });
-    });
-  });
+  initArticleActions();
 </script>
 
 <script>

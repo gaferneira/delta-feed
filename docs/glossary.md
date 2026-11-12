@@ -1,48 +1,50 @@
 # Glossary
 
-One word per idea. Use these terms consistently in docs, code and UI.
+One word per idea. Use these terms in docs, code and UI.
 
 ## Content
 
-- **Source:** a configured origin of content (an RSS feed, an external collector, manual submission) with its own adapter, schedule and authorization.
-- **Collector:** an external program, such as n8n, that submits observations through the ingestion API.
-- **Observation:** one sighting of a document from a source at a point in time. The same article seen twice is two observations.
-- **Receipt:** the durable record that an ingestion request was accepted.
-- **Article:** a source document, identified by its source plus URL or external ID.
-- **Revision:** an immutable version of an article's content. Changed content creates a new revision; unchanged content shares one.
-- **Backfill:** importing recent history when a source is added: at most the last 30 days and 20 items per source by default. It stays quiet (out of Today) and unread, and the reader labels it "Earlier".
+- **Source:** a configured origin of content, such as an RSS feed.
+- **Article:** a source document, identified by its source plus URL.
+- **Revision:** an immutable version of an article's text. Changed text creates a new revision.
+- **Backfill:** recent history imported when a source is added (30 days, 20 items by default). It adds to the baseline and never produces cards.
 
 ## Knowledge
 
-- **Entity:** something whose identity the system tracks: a tool, library, project, product, hardware item or reusable practice. A practice ("code review before merge") and a concrete implementation of it are different entities.
-- **Identity key:** a strong, namespaced identifier for an entity, such as a repository or package name. Names alone are not identity keys.
-- **Alias:** another name for an entity. Helps find candidates; never proves identity.
-- **Claim:** one atomic statement a source makes about an entity, with scope (version, platform, availability), times and evidence. A claim records what a source said, not that it is true.
-- **Evidence:** the source passage that supports a claim.
-- **Baseline:** the accepted entities and claims that new content is compared against. It has three sources: entities from the user's guides (familiar at entity level only, since a guide entry does not say which claims the user knows), claims extracted from the quiet backfill, and claims from articles already analysed. A claim joins the baseline once it is accepted as validated knowledge. An entity with no baseline claims is a *first sighting*, not "new".
-- **Delta:** how a new claim relates to the baseline: duplicate, novel, refinement or contradiction.
-- **Topic:** a label for an area of interest, many-to-many with entities, articles and guides. Not a separate identity registry.
+- **Entity:** a named thing the system tracks: a tool, library, project, product, device, model, service or practice.
+- **Alias:** another name for an entity. Linking a name to an entity adds it as an alias.
+- **Mention:** one appearance of a name in an article's extraction output.
+- **Name to review:** a mention that matched no entity, or more than one. Its claims wait until you decide what it is: **track** it (start a record for a new entity), mark it the **same as** an entity already tracked, or **ignore** it. You decide once per name. This says which thing a name is, not whether its news is new; news about tracked things appears on Delta.
+- **Claim:** one statement an article makes about an entity: a predicate, a value, a scope (version, platform, availability) and evidence. It records what the source said, not that it is true.
+- **Evidence:** the sentence, copied verbatim from the article, that supports a claim.
+- **Baseline:** the active claims already recorded for an entity. New claims are compared with it.
+- **Fingerprint:** a hash of entity, predicate, value and scope. Two claims with the same fingerprint are duplicates.
+- **Topic:** a label for an area of interest. Not a separate registry of entities.
+
+## Comparison results
+
+- **New:** nothing in the baseline covers it.
+- **First sighting:** the entity had no claims yet, so its claims are new by definition. Not the same as new to you.
+- **Changed** (`refinement`): adds detail to a known claim.
+- **Conflicts** (`contradiction`): disagrees with a known claim.
+- **Duplicate:** already in the baseline. Not shown on Delta.
+- **Not sure** (`unsure`): the system could not decide. Always shown.
 
 ## Reader
 
-- **Discovery:** an entity that is new to you.
-- **First sighting:** an entity with no baseline claims yet, so all its claims count as new. Not the same as a discovery: an entity from your guides can be a first sighting without being new to you.
-- **Delta card:** one card per article on the Delta page, built only from that article's non-duplicate claims: what is new, its evidence, and its source ([ADR 0008](decisions/0008-delta-page-and-feed.md)).
-- **Event:** grouped coverage of one change across several articles. Deferred: the reader shows per-article cards ([ADR 0008](decisions/0008-delta-page-and-feed.md)).
-- **Watchlist:** entities you explicitly want updates about. A ranking signal for the Delta page ([ADR 0007](decisions/0007-preference-signals-and-transparent-ranking.md)), not a page of its own.
-- **Uncertain:** a decision the system could not make safely. It stays visible and reviewable.
-- **Shadow mode:** analysis runs and proposes what to publish or suppress, but nothing is hidden automatically; proposals are labelled and inspectable.
-- **Suppression:** hiding an item from reader views because it is not new. Never deletes anything; off by default.
+- **Delta card:** one card per article, built only from its claims that are not duplicates.
+- **Delta:** the page of Delta cards.
+- **Feed:** the page that lists every article.
+- **Event:** one change covered by several articles. Not modelled yet; see the [roadmap](roadmap.md#open-decisions).
+- **Shadow mode:** analysis proposes, nothing is hidden automatically.
 
 ## Guides
 
-- **Guide:** your own living article for a purpose, such as "Raspberry Pi home automation" or "Recommended skills every project should have", made of structured entries plus your own prose.
-- **Guide entry:** one recommended entity or practice within a guide, with suitability, requirements, caveats and evidence.
-- **Personal prose:** text you wrote in a guide. Never overwritten by generated content.
+- **Guide:** your own reference article for a purpose, made of structured entries and your own writing.
+- **Guide entry:** one recommended entity or practice in a guide.
+- **Proposal:** a suggested guide change waiting for your approval.
 
 ## Processing
 
-- **Proposal:** a model-suggested outcome (a news disposition or a guide edit) awaiting acceptance. Models only ever propose.
-- **Correction:** a reviewed change to identity decisions (merge, split, reassign), recorded as new history rather than rewriting old history.
-- **Analysis run:** one execution of extraction and matching, with its prompt, schema, model and index versions recorded.
-- **Job:** a durable unit of background work with leases and retries.
+- **Analysis run:** one model task on one article revision, with its prompt, schema and model versions.
+- **Job:** a durable unit of background work with a lease and retries.

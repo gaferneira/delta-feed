@@ -1,0 +1,96 @@
+---
+import type { MentionGroup } from '../lib/api/types';
+import {
+  claimsUnlockLabel, defaultAction, displayName, ENTITY_TYPES, linkLabel, mentionsLabel, otherSpellings, typeLabel,
+} from '../lib/names';
+import { httpUrl } from '../lib/url';
+
+interface Props {
+  group: MentionGroup;
+  index: number;
+}
+const { group, index } = Astro.props;
+const name = displayName(group);
+const spellings = otherSpellings(group);
+const first = group.candidates[0];
+const primary = defaultAction(group);
+const unlocks = claimsUnlockLabel(group.claim_count);
+const articles = group.articles.map((article) => ({ ...article, href: httpUrl(article.url) }));
+const moreArticles = Math.max(0, group.article_count - articles.length);
+const id = `name-${index}`;
+---
+<article
+  class="card name-card"
+  tabindex="-1"
+  aria-labelledby={`${id}-title`}
+  data-name-card
+  data-key={index}
+  data-name={group.normalized_name}
+  data-type={group.entity_type}
+  data-display={name}
+  data-candidates={group.candidates.length}
+  data-primary={primary}
+>
+  <div class="name-head">
+    <h2 class="name-title" id={`${id}-title`}>{name}</h2>
+    <span class="meta"><span class="chip k-plain">{typeLabel(group.entity_type)}</span> &middot; {mentionsLabel(group.count, group.article_count)}</span>
+  </div>
+  {spellings.length > 0 && (
+    <p class="meta name-spellings">Also written as {spellings.map((spelling, i) => <>{i > 0 && ', '}&ldquo;{spelling}&rdquo;</>)}</p>
+  )}
+  {group.evidence_sample && <p class="quote">&ldquo;{group.evidence_sample}&rdquo;</p>}
+  {articles.length > 0 && (
+    <p class="meta name-articles">In: {articles.map((article, i) => (
+      <>{i > 0 && ', '}{article.href
+        ? <a href={article.href} target="_blank" rel="noopener noreferrer">{article.title || 'Untitled article'}</a>
+        : (article.title || 'Untitled article')}</>
+    ))}{moreArticles > 0 && <> and {moreArticles} more</>}</p>
+  )}
+  {unlocks && <p class="meta name-unlocks">{unlocks}</p>}
+
+  {first ? (
+    <fieldset class="name-options">
+      <legend class="sub">Is it the same as one of these?</legend>
+      {group.candidates.map((candidate, i) => (
+        <label class:list={['opt', { sel: i === 0 }]}>
+          <input type="radio" name={`${id}-candidate`} value={candidate.entity_id} data-entity-name={candidate.name} checked={i === 0} />
+          <span>
+            <strong>{candidate.name}</strong>
+            <span class="meta"> &middot; {typeLabel(candidate.type)}{candidate.type !== group.entity_type ? ' · different type' : ''}</span>
+            {i < 5 && <kbd class="kcap" aria-hidden="true">{i + 1}</kbd>}
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  ) : (
+    <p class="meta name-none">Nothing similar is tracked yet.</p>
+  )}
+
+  <div class="name-actions">
+    {first && <button type="button" class="btn" data-act="link">{linkLabel(first.name)} <kbd class="kcap" aria-hidden="true">S</kbd></button>}
+    <button type="button" class:list={[first ? 'btn2' : 'btn']} data-act="create">Track this <kbd class="kcap" aria-hidden="true">T</kbd></button>
+    <span class="spacer"></span>
+    <button type="button" class="qb" data-act="dismiss">Ignore <kbd class="kcap" aria-hidden="true">I</kbd></button>
+  </div>
+  {first && <p class="meta name-help" data-link-help>&ldquo;{name}&rdquo; becomes another name for {first.name}, so it matches by itself next time.</p>}
+
+  <details class="disclosure name-edit" data-edit>
+    <summary class="qb">Edit before tracking</summary>
+    <form class="name-form" data-edit-form novalidate>
+      <div class="name-form-grid">
+        <div class="field"><label for={`${id}-n`}>Name</label><input id={`${id}-n`} name="name" value={name} required maxlength="200" autocomplete="off" /></div>
+        <div class="field">
+          <label for={`${id}-t`}>Type</label>
+          <select id={`${id}-t`} name="entity_type">
+            {ENTITY_TYPES.map((type) => <option value={type} selected={type === group.entity_type}>{typeLabel(type)}</option>)}
+          </select>
+        </div>
+      </div>
+      <div class="field"><label for={`${id}-u`}>Homepage <span class="optional">(optional)</span></label><input id={`${id}-u`} name="homepage" type="url" placeholder="https://" autocomplete="off" /></div>
+      <div class="name-form-actions">
+        <button type="submit" class="btn">Track with these details</button>
+        <button type="button" class="btn2" data-edit-cancel>Cancel</button>
+      </div>
+    </form>
+  </details>
+</article>

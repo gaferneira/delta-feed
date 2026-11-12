@@ -14,11 +14,20 @@ LEASE_SECONDS = 60
 HANDLERS = {
     "content.poll_rss": "delta_feed.content.rss:poll_rss_source",
     "analysis.extract_article": "delta_feed.analysis.use_cases:extract_article_job",
+    "analysis.compare_run": "delta_feed.analysis.use_cases:compare_run_job",
+    "analysis.compare_mention_group": "delta_feed.analysis.use_cases:compare_mention_group_job",
 }
-JOB_TYPES = {"rss.poll": "content.poll_rss", "analysis.extract": "analysis.extract_article"}
+JOB_TYPES = {
+    "rss.poll": "content.poll_rss",
+    "analysis.extract": "analysis.extract_article",
+    "analysis.compare": "analysis.compare_run",
+    "analysis.compare_group": "analysis.compare_mention_group",
+}
+# Each of these jobs handles one run, so the lease covers that run's model calls.
+LONG_LEASE_JOB_TYPES = {"analysis.extract", "analysis.compare", "analysis.compare_group"}
 
 
-def enqueue_job(*, job_type: str, payload: dict, handler_name: str) -> Job:
+def enqueue_job(*, job_type: str, payload: dict, handler_name: str, run_after=None) -> Job:
     if handler_name not in HANDLERS or JOB_TYPES.get(job_type) != handler_name:
         raise ValueError(f"Job handler/type is not allowlisted: {job_type}")
     if not job_type or len(job_type) > 100:
@@ -27,14 +36,14 @@ def enqueue_job(*, job_type: str, payload: dict, handler_name: str) -> Job:
         type=job_type,
         payload=payload,
         handler_name=handler_name,
-        run_after=timezone.now(),
+        run_after=run_after or timezone.now(),
     )
 
 
 def _lease_seconds(job_type: str) -> int:
     # Model calls can outlast the default lease; a lease that expires mid-call would
-    # let a second worker run the same extraction.
-    if job_type == "analysis.extract":
+    # let a second worker run the same analysis.
+    if job_type in LONG_LEASE_JOB_TYPES:
         return settings.ANALYSIS_TIMEOUT_SECONDS + LEASE_SECONDS
     return LEASE_SECONDS
 
